@@ -24,6 +24,11 @@ def get_refreshed_token_for_character(user, character):
     Handles auth failure by logging the user out.
     Returns the valid Token object or None if a redirect is needed.
     """
+    # ---
+    # --- THE FIX IS HERE ---
+    # ---
+    # We wrap the entire function in a generic try/except to catch
+    # unexpected errors (like TypeError) and fail safely by returning None.
     try:
         token = Token.objects.filter(
             user=user, 
@@ -33,8 +38,8 @@ def get_refreshed_token_for_character(user, character):
         if not token:
             raise Token.DoesNotExist
 
-        # --- ON-DEMAND TOKEN REFRESH ---
-        if character.token_expiry < timezone.now():
+        # --- MODIFIED: Check for None *before* comparing to timezone.now()
+        if not character.token_expiry or character.token_expiry < timezone.now():
             token.refresh()
             character.access_token = token.access_token
             character.token_expiry = token.expires # .expires is added in-memory by .refresh()
@@ -53,6 +58,11 @@ def get_refreshed_token_for_character(user, character):
             raise e # Re-raise other ESI errors
     except Token.DoesNotExist:
         return None # Will cause a redirect
+    except Exception as e:
+        # --- ADDED: Catch any other errors (like TypeError)
+        print(f"Error in get_refreshed_token_for_character: {e}")
+        return None # Fail safely
+    # --- END FIX ---
 # --- END HELPER FUNCTION ---
 
 
@@ -335,41 +345,54 @@ def api_get_implants(request):
         # --- SDE & Grouping Logic (same as pilot_detail) ---
         all_implant_ids = implants_response # Response is just a list of IDs
         enriched_implants = []
-        if all_implant_ids:
-            # --- We MUST cache missing SDE data here ---
-            cached_types = {t.type_id: t for t in EveType.objects.filter(type_id__in=all_implant_ids).select_related('group')}
-            cached_groups = {g.group_id: g for g in EveGroup.objects.all()}
-            
-            missing_ids = [iid for iid in all_implant_ids if iid not in cached_types]
-            for implant_id in missing_ids:
-                try:
-                    type_data = esi.client.Universe.get_universe_types_type_id(type_id=implant_id).results()
-                    group_id = type_data['group_id']
-                    group = cached_groups.get(group_id)
-                    if not group:
-                        group_data = esi.client.Universe.get_universe_groups_group_id(group_id=group_id).results()
-                        group = EveGroup.objects.create(group_id=group_id, name=group_data['name'])
-                        cached_groups[group.group_id] = group
-                    
-                    slot = None
-                    if 'dogma_attributes' in type_data:
-                        for attr in type_data['dogma_attributes']:
-                            if attr['attribute_id'] == 300: slot = int(attr['value']); break
-                    
-                    new_type = EveType.objects.create(type_id=implant_id, name=type_data['name'], group=group, slot=slot)
-                    cached_types[implant_id] = new_type
-                except Exception:
-                    continue # Skip this implant
-            # --- End SDE Cache ---
+        
+        # ---
+        # --- THE FIX IS HERE ---
+        # ---
+        # Wrap the SDE cache-fill in a try/except so it doesn't crash
+        # the whole request if one ESI lookup fails.
+        try:
+            if all_implant_ids:
+                # --- We MUST cache missing SDE data here ---
+                cached_types = {t.type_id: t for t in EveType.objects.filter(type_id__in=all_implant_ids).select_related('group')}
+                cached_groups = {g.group_id: g for g in EveGroup.objects.all()}
+                
+                missing_ids = [iid for iid in all_implant_ids if iid not in cached_types]
+                for implant_id in missing_ids:
+                    try:
+                        type_data = esi.client.Universe.get_universe_types_type_id(type_id=implant_id).results()
+                        group_id = type_data['group_id']
+                        group = cached_groups.get(group_id)
+                        if not group:
+                            group_data = esi.client.Universe.get_universe_groups_group_id(group_id=group_id).results()
+                            group = EveGroup.objects.create(group_id=group_id, name=group_data['name'])
+                            cached_groups[group.group_id] = group
+                        
+                        slot = None
+                        if 'dogma_attributes' in type_data:
+                            for attr in type_data['dogma_attributes']:
+                                if attr['attribute_id'] == 300: slot = int(attr['value']); break
+                        
+                        new_type = EveType.objects.create(type_id=implant_id, name=type_data['name'], group=group, slot=slot)
+                        cached_types[implant_id] = new_type
+                    except Exception:
+                        continue # Skip this implant
+                # --- End SDE Cache ---
 
-            for implant_id in all_implant_ids:
-                if implant_id in cached_types:
-                    eve_type = cached_types[implant_id]
-                    enriched_implants.append({
-                        'name': eve_type.name,
-                        'slot': eve_type.slot if eve_type.slot else 0,
-                        'icon_url': f"https://images.evetech.net/types/{implant_id}/icon?size=32"
-                    })
+                for implant_id in all_implant_ids:
+                    if implant_id in cached_types:
+                        eve_type = cached_types[implant_id]
+                        enriched_implants.append({
+                            'name': eve_type.name,
+                            'slot': eve_type.slot if eve_type.slot else 0,
+                            'icon_url': f"https://images.evetech.net/types/{implant_id}/icon?size=32"
+                        })
+        except Exception as e:
+            # Log the SDE error to the console but don't crash the request
+            print(f"ERROR: Failed to cache SDE for implants in api_get_implants: {e}")
+            # The 'enriched_implants' list will be empty, which is fine.
+        # --- END FIX ---
+
         
         sorted_implants = sorted(enriched_implants, key=lambda i: i.get('slot', 0))
         
@@ -391,8 +414,17 @@ def api_get_implants(request):
             'implants_col2': implants_col2,
         }
         
-        # Render the partial template to HTML
-        html = render_to_string('partials/_implant_list.html', context)
+        # --- MODIFICATION: Added a try/except around rendering ---
+        try:
+            # Render the partial template to HTML
+            html = render_to_string('_implant_list.html', context)
+        except Exception as e:
+            # This will catch TemplateDoesNotExist or other rendering errors
+            return JsonResponse({
+                "status": "error", 
+                "message": f"Template rendering failed: {str(e)}"
+            }, status=500)
+        # --- END MODIFICATION ---
         
         # Return the HTML and the expiry time
         return JsonResponse({
@@ -402,4 +434,5 @@ def api_get_implants(request):
         })
 
     except Exception as e:
+        # This catches ESI errors, token errors, etc.
         return JsonResponse({"status": "error", "message": str(e)}, status=500)

@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+<!-- Set the page title -->
+{% block title %}FC Admin - Waitlist Management{% endblock %}
+
+{% block styles %}
+<style>
+    .container {
+        max-width: 800px;
+        margin: 20px auto;
+        background: #2a2a2a;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    h1 {
+        border-bottom: 1px solid #444;
+        padding-bottom: 10px;
+    }
+
+    .admin-section {
+        background: #333;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 20px;
+    }
+
+        .admin-section h2 {
+            margin-top: 0;
+        }
+
+    .status-open {
+        color: #28a745;
+    }
+
+    .status-closed {
+        color: #dc3545;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+        .form-group label {
+            font-weight: 600;
+            color: #ccc;
+        }
+
+        .form-group input,
+        .form-group select {
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 5px;
+            padding: 10px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 1em;
+        }
+
+    .btn {
+        display: inline-block;
+        padding: 10px 18px;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 1em;
+        transition: background-color 0.3s;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn-danger {
+        background-color: #993333;
+    }
+
+        .btn-danger:hover {
+            background-color: #b33a3a;
+        }
+
+    .btn-success {
+        background-color: #218838;
+    }
+
+        .btn-success:hover {
+            background-color: #28a745;
+        }
+
+    .btn-warning {
+        background-color: #a67c00;
+    }
+
+        .btn-warning:hover {
+            background-color: #c99900;
+        }
+
+    /* Message styles */
+    .message {
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        font-weight: 500;
+    }
+
+    .message-success {
+        background: #28a745;
+        color: #fff;
+    }
+
+    .message-error {
+        background: #dc3545;
+        color: #fff;
+    }
+
+    .message-loading {
+        background: #007bff;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container">
+    <h1>FC Waitlist Management</h1>
+
+    <!-- This div will hold our status messages -->
+    <div id="message-container"></div>
+
+    {% if open_waitlist %}
+    <!--
+    =================================
+    SECTION 1: A Waitlist is OPEN
+    =================================
+    -->
+    <div class="admin-section" id="section-waitlist-open">
+        <h2>Current Waitlist Status: <span class="status-open">OPEN</span></h2>
+
+        <div class="form-group">
+            <label>Current Description</label>
+            <input type="text" value="{{ open_waitlist.fleet.description }}" readonly>
+        </div>
+        <div class="form-group">
+            <label>Current FC</label>
+            <input type="text" value="{{ open_waitlist.fleet.fleet_commander.character_name }}" readonly>
+        </div>
+        <div class="form-group">
+            <label>Current ESI Fleet ID</label>
+            <input type="text" value="{{ open_waitlist.fleet.esi_fleet_id }}" readonly>
+        </div>
+
+        <form id="close-waitlist-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="close">
+            <button type="submit" class="btn btn-danger" id="close-waitlist-btn">Close This Waitlist</button>
+        </form>
+    </div>
+
+    <!-- "TAKE OVER" FORM -->
+    <div class="admin-section" id="section-takeover-waitlist">
+        <h2>Take Over Fleet</h2>
+        <form id="takeover-waitlist-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="takeover">
+
+            <div class="form-group">
+                <label for="takeover-fc-select">Your FC Character</label>
+                <select id="takeover-fc-select" name="fleet_commander_id" required>
+                    <option value="">-- Select your character --</option>
+                    {% for char in user_fc_characters %}
+                    <option value="{{ char.character_id }}">{{ char.character_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <p style="color: #aaa; font-style: italic; font-size: 0.9em;">
+                Ensure you are in a fleet and are the fleet boss before clicking.
+            </p>
+
+            <button type="submit" class="btn btn-warning" id="takeover-waitlist-btn">Take Over Waitlist</button>
+        </form>
+    </div>
+
+    {% else %}
+    <!--
+    =================================
+    SECTION 2: The Waitlist is CLOSED
+    =================================
+    -->
+    <div class="admin-section" id="section-waitlist-closed">
+        <h2>Current Waitlist Status: <span class="status-closed">CLOSED</span></h2>
+        <p>Use the form below to open a new waitlist. You must be the fleet boss of an active fleet.</p>
+
+        <form id="open-waitlist-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="open">
+
+            <!-- --- MODIFIED: FC Character Select --- -->
+            <div class="form-group">
+                <label for="fc-select">Your FC Character</label>
+                <select id="fc-select" name="fleet_commander_id" required>
+                    <option value="">-- Select your character --</option>
+                    {% for char in user_fc_characters %}
+                    <option value="{{ char.character_id }}">{{ char.character_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- --- MODIFIED: Fleet Type Select (was text input) --- -->
+            <div class="form-group">
+                <label for="fleet-select">Fleet Type</label>
+                <select id="fleet-select" name="fleet_id" required>
+                    <option value="">-- Select fleet type --</option>
+                    {% for fleet in available_fleets %}
+                    <option value="{{ fleet.id }}">{{ fleet.description }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- --- END MODIFICATION --- -->
+
+            <button type="submit" class="btn btn-success" id="open-waitlist-btn">Open New Waitlist</button>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const messageContainer = document.getElementById('message-container');
+        const apiUrl = "{% url 'waitlist:api_fc_manage_waitlist' %}";
+
+        // --- Helper to show messages ---
+        function showMessage(type, text) {
+            messageContainer.innerHTML = `<div class="message message-${type}">${text}</div>`;
+        }
+
+        // --- 1. Handle OPEN Waitlist ---
+        const openForm = document.getElementById('open-waitlist-form');
+        if (openForm) {
+            openForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const button = document.getElementById('open-waitlist-btn');
+                button.disabled = true;
+                showMessage('loading', 'Opening waitlist... Verifying with ESI...');
+
+                const formData = new FormData(openForm);
+
+                fetch(apiUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showMessage('success', data.message);
+                            window.location.reload(); // Reload to show the new state
+                        } else {
+                            showMessage('error', `Error: ${data.message}`);
+                            button.disabled = false;
+                        }
+                    })
+                    .catch(err => {
+                        showMessage('error', `Network Error: ${err}`);
+                        button.disabled = false;
+                    });
+            });
+        }
+
+        // --- 2. Handle CLOSE Waitlist ---
+        const closeForm = document.getElementById('close-waitlist-form');
+        if (closeForm) {
+            closeForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                if (!confirm('Are you sure you want to close this waitlist? All pending fits will be denied.')) {
+                    return;
+                }
+
+                const button = document.getElementById('close-waitlist-btn');
+                button.disabled = true;
+                showMessage('loading', 'Closing waitlist...');
+
+                const formData = new FormData(closeForm);
+
+                fetch(apiUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showMessage('success', data.message);
+                            window.location.reload(); // Reload to show the new state
+                        } else {
+                            showMessage('error', `Error: ${data.message}`);
+                            button.disabled = false;
+                        }
+                    })
+                    .catch(err => {
+                        showMessage('error', `Network Error: ${err}`);
+                        button.disabled = false;
+                    });
+            });
+        }
+
+        // --- 3. Handle TAKEOVER Waitlist ---
+        const takeoverForm = document.getElementById('takeover-waitlist-form');
+        if (takeoverForm) {
+            takeoverForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const button = document.getElementById('takeover-waitlist-btn');
+                button.disabled = true;
+                showMessage('loading', 'Taking over waitlist... Verifying with ESI...');
+
+                const formData = new FormData(takeoverForm);
+
+                fetch(apiUrl, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showMessage('success', data.message);
+                            window.location.reload(); // Reload to show the new state
+                        } else {
+                            showMessage('error', `Error: ${data.message}`);
+                            button.disabled = false;
+                        }
+                    })
+                    .catch(err => {
+                        showMessage('error', `Network Error: ${err}`);
+                        button.disabled = false;
+                    });
+            });
+        }
+
+    });
+</script>
+{% endblock %}

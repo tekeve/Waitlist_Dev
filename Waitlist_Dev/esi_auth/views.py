@@ -94,14 +94,16 @@ def sso_complete_login(request):
         )
     except CallbackRedirect.DoesNotExist:
         # This shouldn't happen, but if it does, send to homepage.
-        return redirect('home')
+        # --- MODIFIED ---
+        return redirect('waitlist:home')
 
     # 2. Get the ESI token from the object.
     esi_token = callback_redirect.token
     if not esi_token:
         # Callback happened but didn't result in a token.
         callback_redirect.delete() # Clean up the failed redirect
-        return redirect('home')
+        # --- MODIFIED ---
+        return redirect('waitlist:home')
         
     # --- THIS IS THE FIX (Part 2) ---
     # The 'esi_token' is the NEW token. We must delete all
@@ -122,12 +124,14 @@ def sso_complete_login(request):
         # This will fail if the token model fields are named differently.
         # If so, we can't log in, so just clean up and go home.
         callback_redirect.delete()
-        return redirect('home')
+        # --- MODIFIED ---
+        return redirect('waitlist:home')
         
     if not char_id or not char_name:
         # Token is missing key info
         callback_redirect.delete()
-        return redirect('home')
+        # --- MODIFIED ---
+        return redirect('waitlist:home')
 
 
     # --- THE FIX: Handle 'Add Alt' vs 'First Login' ---
@@ -244,7 +248,8 @@ def sso_complete_login(request):
             request.session.save()
     
     # 11. Send the now-logged-in user to the homepage.
-    return redirect('home')
+    # --- MODIFIED ---
+    return redirect('waitlist:home')
 # --- END FIX ---
 
 
@@ -253,4 +258,5 @@ def esi_logout(request):
     Logs the user out of the Django application.
     """
     logout(request)
-    return redirect('home')
+    # --- MODIFIED ---
+    return redirect('waitlist:home')

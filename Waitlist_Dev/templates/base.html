@@ -423,6 +423,22 @@
             Home
         </a>
 
+        <!-- --- FC ADMIN LINKS --- -->
+        <!--
+        The 'is_fc' variable is passed from the home view.
+        We check if the user is in the 'Fleet Commander' group.
+        -->
+        {% if is_fc %}
+        <!-- Display the FC Admin button if they are in the group -->
+        <a href="{% url 'waitlist:fc_admin' %}" class="header-btn" style="background-color: #c25428;" title="FC Waitlist Admin">
+            FC Admin
+        </a>
+        <!-- Display the "Add FC Scopes" button -->
+        <a href="{% url 'esi_auth:login' %}?scopes=fc" class="header-btn" style="background-color: #c25428;" title="Add/Refresh FC Scopes">
+            Add FC Scopes
+        </a>
+        {% endif %}
+        <!-- --- END FC ADMIN LINKS --- -->
         <!-- --- MOVED: X-Up button is now on the left --- -->
         <!-- This button will be enabled/disabled by the waitlist_view.html template -->
         <button type="button"

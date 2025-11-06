@@ -30,19 +30,41 @@ class Fleet(models.Model):
     """
     Represents a fleet that a character can be invited to.
     Managed by FCs.
+    
+    --- MODIFIED FOR STATIC FLEETS ---
+    These objects (e.g., 'Headquarters', 'Assaults') will now be static.
+    'is_active', 'fleet_commander', and 'esi_fleet_id' will be 
+    set when an FC "opens" the fleet, and cleared when "closed".
+    --- END MODIFICATION ---
     """
     fleet_commander = models.ForeignKey(
         EveCharacter,
-        on_delete=models.PROTECT, # Don't delete a fleet just because an FC is deleted
+        # --- MODIFIED: Allow this to be null when no FC is active ---
+        on_delete=models.SET_NULL, 
+        null=True,
+        blank=True,
+        # --- END MODIFICATION ---
         related_name="commanded_fleets"
     )
-    esi_fleet_id = models.BigIntegerField(unique=True, help_text="The ESI ID of the active fleet.")
-    is_active = models.BooleanField(default=True)
-    description = models.CharField(max_length=255)
+    esi_fleet_id = models.BigIntegerField(
+        # --- MODIFIED: Allow null, but keep unique if set ---
+        unique=True, 
+        null=True, 
+        blank=True,
+        # --- END MODIFICATION ---
+        help_text="The ESI ID of the active fleet."
+    )
+    is_active = models.BooleanField(default=False) # --- MODIFIED: Default to False ---
+    description = models.CharField(
+        max_length=255, 
+        unique=True # --- ADDED: Ensures we only have one 'Headquarters' etc.
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Fleet {self.esi_fleet_id} ({self.fleet_commander.character_name})"
+        if self.is_active and self.fleet_commander:
+             return f"{self.description} (FC: {self.fleet_commander.character_name})"
+        return f"{self.description} (Inactive)"
 
 class FleetWaitlist(models.Model):
     """
@@ -55,7 +77,7 @@ class FleetWaitlist(models.Model):
         primary_key=True,
         related_name="waitlist" # Add related_name
     )
-    is_open = models.BooleanField(default=True)
+    is_open = models.BooleanField(default=False) # --- MODIFIED: Default to False ---
 
     def __str__(self):
         return f"Waitlist for {self.fleet.description}"

@@ -5,9 +5,6 @@ python-dotenv
 # ESI integration and OAuth
 django-esi
 
-# EVE Online Fit Parsing
-eveparse
-
 # MySQL database driver
 PyMySQL==1.1.1
 
