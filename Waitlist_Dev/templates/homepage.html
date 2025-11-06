@@ -36,15 +36,51 @@
                 background-color: #4e71bb;
             }
 
+        /* --- NEW STYLES --- */
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px; /* Adds space between buttons */
+            justify-content: center;
+        }
+
+        .admin-btn,
         .logout-btn {
             display: inline-block;
             padding: 10px 20px;
-            margin-top: 20px;
-            background-color: #993333;
             color: #fff;
             text-decoration: none;
             border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s;
         }
+
+        .logout-btn {
+            background-color: #993333;
+        }
+
+            .logout-btn:hover {
+                background-color: #b33a3a;
+            }
+
+        .admin-btn {
+            background-color: #339966; /* A green admin color */
+        }
+
+            .admin-btn:hover {
+                background-color: #3caa73;
+            }
+
+        /* --- NEW STYLE FOR ALT BUTTON --- */
+        .add-alt-btn {
+            background-color: #3b5998; /* EVE SSO Blue */
+        }
+
+            .add-alt-btn:hover {
+                background-color: #4e71bb;
+            }
+        /* --- END NEW STYLE --- */
+
     </style>
 </head>
 <body>
@@ -63,14 +99,31 @@
             {% endfor %}
         </ul>
 
-        <!-- This URL uses the 'esi_auth' namespace and should work -->
-        <a href="{% url 'esi_auth:logout' %}" class="logout-btn">Log Out</a>
+        <!--
+        THE FIX:
+        We add a check for 'user.is_staff'.
+        If true, we show the Admin Panel button.
+        We also put the buttons in a group for better layout.
+        -->
+        <div class="button-group">
+            {% if user.is_staff %}
+            <!-- Use 'admin:index' as it's the named URL for the admin homepage -->
+            <a href="{% url 'admin:index' %}" class="admin-btn">Admin Panel</a>
+            {% endif %}
+
+            <!-- --- THE FIX: ADD 'ADD CHARACTER' BUTTON --- -->
+            <!-- This button re-uses the same login flow to add an alt -->
+            <a href="{% url 'esi_auth:login' %}" class="admin-btn add-alt-btn">Add Character</a>
+            <!-- --- END FIX --- -->
+            <!-- This URL uses the 'esi_auth' namespace and should work -->
+            <a href="{% url 'esi_auth:logout' %}" class="logout-btn">Log Out</a>
+        </div>
 
         {% else %}
         <!-- Show this if the user is NOT logged in -->
         <p>Please log in with EVE SSO to join the waitlist.</p>
 
-        <a href="/sso/login/" class="login-btn">
+        <a href="{% url 'esi_auth:login' %}" class="login-btn">
             Log In with EVE Online
         </a>
         {% endif %}

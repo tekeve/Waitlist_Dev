@@ -125,6 +125,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+# --- THE FIX ---
+# The AUTHENTICATION_BACKENDS section has been removed
+# as it was causing a ModuleNotFoundError.
+# We are now logging the user in manually in our view.
+# --- END FIX ---
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
@@ -159,32 +166,45 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ESI_USER_CONTACT_EMAIL = os.environ.get('ESI_USER_CONTACT_EMAIL')
 
 # Set your callback URL in the EVE dev portal to:
-# http://127.0.0.1:8000/auth/callback/  (for local testing)
-# https://your-domain.com/auth/callback/ (for production)
+# http://127.0.0.1:8000/auth/callback/
 #
 # Load from .env
 ESI_SSO_CLIENT_ID = os.environ.get('ESI_SSO_CLIENT_ID')
 ESI_SSO_CLIENT_SECRET = os.environ.get('ESI_SSO_CLIENT_SECRET')
+
+# This MUST point to our /auth/callback/ path
 ESI_SSO_CALLBACK_URL = 'http://127.0.0.1:8000/auth/callback/'
 
-# We are removing the first "LOGIN_URL = '/auth/login/'" definition here.
-# The correct one is at the bottom of the file.
 LOGIN_REDIRECT_URL = '/'  # Redirect to homepage after login
 LOGOUT_REDIRECT_URL = '/'
-# --- End ESI Configuration ---
+
+
+# This tells Django what the login URL is.
+# We point it to the 'login' view inside our 'esi_auth' app.
+LOGIN_URL = 'esi_auth:login'
+
+
+# --- THE FIX: Create multiple scope lists ---
 
 # This tells django-esi what scopes to ask for on login.
-# We will need to add a LOT more scopes here later.
-ESI_SSO_SCOPES = [
-    # Add scopes as you need them, e.g.:
+# We will define two different sets of scopes.
+ESI_SSO_SCOPES_REGULAR = [
+    'esi-skills.read_skills.v1',
+    'esi-clones.read_implants.v1',
+]
+
+ESI_SSO_SCOPES_FC = [
     'esi-skills.read_skills.v1',
     'esi-clones.read_implants.v1',
     'esi-fleets.read_fleet.v1',
     'esi-fleets.write_fleet.v1',
 ]
 
-# Tell Django what the login URL is.
-#
-# THE FIX IS HERE:
-# This must match the new hardcoded path.
-LOGIN_URL = '/sso/login/'
+# We are removing the old, single ESI_SSO_SCOPES variable.
+# Our esi_login view will now choose one of the two lists above.
+
+# --- END FIX ---
+
+
+# This setting tells Django which domain to use for session cookies.
+# We set it to 127.0.0.1 to prevent the "two-domain" bug

@@ -26,9 +26,13 @@ urlpatterns = [
     
     # ESI SSO URLs (login, callback)
     # We are explicitly defining the namespace 'esi' here.
-    path('sso/', include('esi.urls', namespace='esi')),
+    #
+    # --- THE FIX ---
+    # We are REMOVING the 'sso/' path. It's not resolving correctly.
+    # We will move the callback into the 'esi_auth' app.
+    # path('sso/', include('esi.urls', namespace='esi')),
     
-    # Our custom auth views (just logout for now)
+    # Our custom auth views (login, logout, and now callback)
     #
     # THE FIX IS HERE:
     # We are also explicitly defining the namespace 'esi_auth' here...
