@@ -25,7 +25,7 @@
         max-width: 340px;
         display: flex;
         flex-direction: column;
-        background: #2a2a2a;
+        background: none; /* MODIFIED: Removed column background */
         border-radius: 8px;
         /* Handle vertical overflow */
         height: 100%;
@@ -78,7 +78,7 @@
         }
 
         .fit-card-list::-webkit-scrollbar-track {
-            background: #2a2a2a;
+            background: rgba(42, 42, 42, 0.5); /* MODIFIED: Made track semi-transparent */
             border-radius: 4px;
         }
 
@@ -93,11 +93,11 @@
 
 
     .fit-card {
-        background: #333;
-        border: 1px solid #444;
+        background: #333; /* MODIFIED: Re-added background */
+        border: 1px solid #444; /* MODIFIED: Re-added border */
         border-radius: 5px;
         margin-bottom: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* MODIFIED: Re-added shadow */
     }
 
     .card-header {
@@ -332,7 +332,9 @@ It will be filled by the partial template on page load.
         const card = document.getElementById(`fit-card-${fitId}`);
 
         // Disable all buttons on this card to prevent double-clicks
-        card.querySelectorAll('.fc-btn').forEach(btn => btn.disabled = true);
+        if (card) {
+            card.querySelectorAll('.fc-btn').forEach(btn => btn.disabled = true);
+        }
 
         const formData = new FormData();
         formData.append('fit_id', fitId);
@@ -352,21 +354,26 @@ It will be filled by the partial template on page load.
                 // --- FIX: Only remove on 'deny' ---
                 // Let the poller handle moving 'approved' fits
                 if (action === 'deny') {
-                    card.remove();
+                    if (card) {
+                        card.remove();
+                    }
                 } else {
                     // Optional: show a temporary "approved" state
                     // For now, we just leave buttons disabled
                 }
-                // --- END FIX ---
             } else {
                 // Re-enable buttons on failure
-                card.querySelectorAll('.fc-btn').forEach(btn => btn.disabled = false);
+                if (card) {
+                    card.querySelectorAll('.fc-btn').forEach(btn => btn.disabled = false);
+                }
                 alert(`Error: ${data.message}`);
             }
         })
         .catch(error => {
             // Re-enable buttons on failure
-            card.querySelectorAll('.fc-btn').forEach(btn => btn.disabled = false);
+            if (card) {
+                card.querySelectorAll('.fc-btn').forEach(btn => btn.disabled = false);
+            }
             alert(`Network Error: ${error.message}`);
         });
     }
@@ -426,8 +433,24 @@ It will be filled by the partial template on page load.
     const fitModalBody = document.getElementById('fit-detail-modal-body');
     const fitModalTitle = document.getElementById('fit-detail-modal-title');
 
+    // --- NEW: Get modal footer buttons ---
+    const fitModalAcceptBtn = document.getElementById('fit-detail-modal-accept-btn');
+    const fitModalDenyBtn = document.getElementById('fit-detail-modal-deny-btn');
+
+    // --- NEW: Variable to store current fit ID ---
+    let currentModalFitId = null;
+
+
     function openFitModal(fitId) {
         if (!fitModalOverlay) return;
+
+        // --- NEW: Store fitId and show footer buttons ---
+        currentModalFitId = fitId;
+        fitModalAcceptBtn.style.display = 'inline-block';
+        fitModalDenyBtn.style.display = 'inline-block';
+        fitModalAcceptBtn.disabled = false;
+        fitModalDenyBtn.disabled = false;
+        // --- END NEW ---
 
         // Show modal with spinner
         fitModalBody.innerHTML = '<div class="modal-spinner"></div>';
@@ -444,58 +467,112 @@ It will be filled by the partial template on page load.
             })
             .then(data => {
                 // --- MODIFICATION: Handle new JSON structure ---
-                // data = { problem_items: [], missing_items: [], doctrine_name: "..." }
+                // data = { full_fit_with_status: [], missing_items: [], doctrine_name: "..." }
 
                 fitModalTitle.textContent = `Fit vs. ${data.doctrine_name}`;
 
                 let html = '<div class="fit-modal-sub-container">';
 
-                // --- Build Problem Items List ---
+                // --- BUILD THE NEW "SUBMITTED FIT" LIST ---
                 html += '<div>';
-                html += '<h3 class="fit-modal-sub-header header-problem">Problem Items</h3>';
-                html += '<ul class="fit-modal-sub-list">';
-                if (data.problem_items.length > 0) {
-                    data.problem_items.forEach(item => {
-                        html += `<li class="fit-modal-sub-item" id="sub-item-${item.type_id}">`;
+                html += '<h3 class="fit-modal-sub-header">Submitted Fit</h3>';
+                html += '<ul class="fit-detail-list">';
+
+                // --- THIS IS THE FIX ---
+                // Check if data is an error OR if the fit list is missing/empty
+                if (data.status === 'error' || !data.full_fit_with_status || data.full_fit_with_status.length === 0) {
+                    // If data.status is 'error', show the error message
+                    if (data.status === 'error') {
+                        html += `<li style="color: #ff8a8a; white-space: normal;">Error loading fit: ${data.message}</li>`;
+                    } else {
+                        // Otherwise, just show "Fit is empty"
+                        html += '<li style="color: #999; font-style: italic;">Fit is empty.</li>';
+                    }
+                // --- END THE FIX ---
+                } else {
+                    data.full_fit_with_status.forEach(item => {
+                        const itemKey = String(item.type_id || item.raw_line);
+                        let itemClass = '';
+                        let indentedListHtml = '';
+                        let buttonsHtml = '';
+
+                        // --- MODIFIED: Use switch statement for new status ---
+                        switch (item.status) {
+                            case 'accepted_sub':
+                                itemClass = 'fit-item-accepted-sub'; // Green
+                                if (item.substitutes_for && item.substitutes_for.length > 0) {
+                                    indentedListHtml = '<ul class="fit-item-sub-for-list">'; // Green dashed border
+                                    item.substitutes_for.forEach(match => {
+                                        indentedListHtml += `<li class="fit-item-sub-for-item">`;
+                                        indentedListHtml += `<img src="${match.icon_url}" alt="${match.name}">`;
+                                        indentedListHtml += `<span>Substitutes for: ${match.name} (x${match.quantity})</span>`;
+                                        indentedListHtml += `</li>`;
+                                    });
+                                    indentedListHtml += '</ul>';
+                                }
+                                break;
+
+                            case 'problem':
+                                itemClass = 'fit-item-problem'; // Yellow
+                                if (item.potential_matches && item.potential_matches.length > 0) {
+                                    indentedListHtml = '<ul class="fit-item-missing-list">'; // Yellow dashed border
+                                    item.potential_matches.forEach(match => {
+                                        indentedListHtml += `<li class="fit-item-missing-item">`;
+                                        indentedListHtml += `<img src="${match.icon_url}" alt="${match.name}">`;
+                                        indentedListHtml += `<span>Missing: ${match.name} (x${match.quantity})</span>`;
+                                        indentedListHtml += `</li>`;
+                                    });
+                                    indentedListHtml += '</ul>';
+
+                                    // --- MODIFIED: Only show accept button ---
+                                    const match = item.potential_matches[0]; // Assume 1:1
+                                    // --- THIS IS THE FIX: Removed whitespace inside button ---
+                                    buttonsHtml = `<div class="sub-action-buttons">
+                                        <button class="fc-btn btn-approve js-sub-accept"
+                                            data-problem-item-id="${item.type_id}"
+                                            data-problem-item-name="${item.name}"
+                                            data-missing-item-id="${match.type_id}"
+                                            data-missing-item-name="${match.name}"
+                                            title="Accept ${item.name} as substitute for ${match.name}">&#10003;</button>
+                                    </div>`;
+                                    // --- END THE FIX ---
+                                } else {
+                                    // Problem item with no potential matches
+                                    indentedListHtml = `<span class="fit-item-problem-tag">(Wrong Item)</span>`;
+                                }
+                                break;
+
+                            case 'doctrine':
+                            default:
+                                itemClass = ''; // Standard item
+                                break;
+                        }
+
+                        html += `<li class="${itemClass}" title="${item.name}" data-item-type-id="${itemKey}">`;
+
+                        // Logic for icon
                         if (item.icon_url) {
-                            html += `<img src="${item.icon_url}" alt="${item.name}">`;
+                            html += `<img src="${item.icon_url}" alt="${item.name}" class="fit-modal-icon">`;
+                        } else if (item.type_id) {
+                             html += `<img src="https://images.evetech.net/types/${item.type_id}/icon?size=32" alt="${item.name}" class="fit-modal-icon" onerror="this.style.display='none'">`;
                         } else {
                             html += '<div class="fit-modal-icon-placeholder"></div>';
                         }
-                        html += `<span title="${item.raw_line}">${item.name} (x${item.quantity})</span>`;
 
-                        // Add "Make Sub" button only if there are missing items to map to
-                        if (data.missing_items.length > 0) {
-                            html += `<button class="btn-make-sub js-make-sub"
-                                        data-sub-item-id="${item.type_id}"
-                                        data-sub-item-name="${item.name}">
-                                        Make Sub
-                                    </button>`;
-                        }
-                        html += '</li>';
-                    });
-                } else {
-                    html += '<li style="color: #999; font-style: italic;">None</li>';
-                }
-                html += '</ul></div>';
-
-                // --- Build Missing Items List ---
-                html += '<div>';
-                html += '<h3 class="fit-modal-sub-header header-missing">Missing Items</h3>';
-                html += '<ul class="fit-modal-sub-list">';
-                if (data.missing_items.length > 0) {
-                    data.missing_items.forEach(item => {
-                        html += `<li class="fit-modal-sub-item">`;
-                        if (item.icon_url) {
-                            html += `<img src="${item.icon_url}" alt="${item.name}">`;
+                        // Display the raw line
+                        if (item.raw_line) {
+                             const safe_line = item.raw_line.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                             html += `<span>${safe_line}</span>`;
                         } else {
-                            html += '<div class="fit-modal-icon-placeholder"></div>';
+                             html += `<span>${item.name}${item.quantity > 1 ? ' x' + item.quantity : ''}</span>`;
                         }
-                        html += `<span>${item.name} (x${item.quantity})</span>`;
+
+                        // Add buttons and indented list
+                        html += buttonsHtml;
+                        html += indentedListHtml;
+
                         html += '</li>';
                     });
-                } else {
-                    html += '<li style="color: #999; font-style: italic;">None</li>';
                 }
                 html += '</ul></div>';
 
@@ -503,13 +580,11 @@ It will be filled by the partial template on page load.
 
                 fitModalBody.innerHTML = html;
 
-                // --- Add event listeners for the new buttons ---
-                // We must do this *after* setting innerHTML
-                fitModalBody.querySelectorAll('.js-make-sub').forEach(button => {
-                    button.addEventListener('click', () => {
-                        showSubstitutionDropdown(button, data.missing_items);
-                    });
+                // --- MODIFIED: Add event listeners for the new buttons ---
+                fitModalBody.querySelectorAll('.js-sub-accept').forEach(button => {
+                    button.addEventListener('click', (event) => handleSubstitutionAction(event, 'accept'));
                 });
+                // --- END MODIFICATION ---
 
             })
             .catch(error => {
@@ -520,85 +595,154 @@ It will be filled by the partial template on page load.
     function closeFitModal() {
         if (fitModalOverlay) {
             fitModalOverlay.classList.remove('show');
+
+            // --- NEW: Reset modal state ---
+            currentModalFitId = null;
+            fitModalAcceptBtn.style.display = 'none';
+            fitModalDenyBtn.style.display = 'none';
+            fitModalAcceptBtn.disabled = false;
+            fitModalDenyBtn.disabled = false;
+            // --- END NEW ---
         }
     }
 
-    // --- NEW: Function to show the "Make Sub" dropdown ---
-    function showSubstitutionDropdown(button, missingItems) {
-        // Get data from the clicked button
-        const substituteItemId = button.dataset.subItemId;
-        const substituteItemName = button.dataset.subItemName;
+    // --- NEW: Custom Confirm Modal Function ---
+    // This function will store the callback to run on "OK"
+    let _onConfirmCallback = null;
+    const confirmModal = document.getElementById('custom-confirm-modal');
+    const confirmMsg = document.getElementById('custom-confirm-message');
+    const confirmOkBtn = document.getElementById('custom-confirm-ok-btn');
+    const confirmCancelBtn = document.getElementById('custom-confirm-cancel-btn');
 
-        // Find the parent list item
-        const listItem = button.closest('.fit-modal-sub-item');
-        if (!listItem) return;
+    function showCustomConfirm(message, onConfirmCallback) {
+        if (!confirmModal) return;
 
-        // Disable the button to prevent double clicks
-        button.disabled = true;
+        confirmMsg.innerHTML = message; // Use innerHTML to allow simple formatting
+        _onConfirmCallback = onConfirmCallback;
 
-        // Create the dropdown
-        const select = document.createElement('select');
-        select.className = 'sub-dropdown-select';
+        // Show the modal
+        confirmModal.classList.add('show');
+    }
 
-        // Add a placeholder option
-        select.innerHTML = `<option value="">Substitute for...</option>`;
-
-        // Add all missing items as options
-        missingItems.forEach(item => {
-            select.innerHTML += `<option value="${item.type_id}">${item.name} (x${item.quantity})</option>`;
+    // Add listeners for the confirm modal buttons
+    if (confirmModal) {
+        confirmOkBtn.addEventListener('click', () => {
+            if (typeof _onConfirmCallback === 'function') {
+                _onConfirmCallback();
+            }
+            _onConfirmCallback = null; // Clear callback
+            confirmModal.classList.remove('show'); // Hide modal
         });
 
-        // Add an event listener to the dropdown
-        select.addEventListener('change', () => {
-            const baseItemId = select.value;
-            if (!baseItemId) return;
+        confirmCancelBtn.addEventListener('click', () => {
+            _onConfirmCallback = null; // Clear callback
+            confirmModal.classList.remove('show'); // Hide modal
+        });
+    }
+    // --- END NEW: Custom Confirm Modal Function ---
 
-            // Get the name of the selected base item
-            const baseItemName = select.options[select.selectedIndex].text;
 
-            // Show a simple confirm dialog
-            if (!confirm(`Add "${substituteItemName}" as a substitute for "${baseItemName}"?`)) {
-                // User cancelled
-                select.remove(); // Remove the dropdown
-                button.disabled = false; // Re-enable button
+    // --- MODIFIED: Replaced showSubstitutionDropdown with handleSubstitutionAction ---
+    function handleSubstitutionAction(event, action) {
+        const button = event.target.closest('button');
+        if (!button) return;
+
+        // --- MODIFIED: Remove 'deny' logic ---
+        if (action === 'accept') {
+            const problemItemId = button.dataset.problemItemId;
+            const missingItemId = button.dataset.missingItemId;
+            const problemItemName = button.dataset.problemItemName;
+            const missingItemName = button.dataset.missingItemName;
+
+            const listItem = button.closest('li[data-item-type-id]');
+
+            if (!missingItemId) {
+                alert("Missing doctrine item ID not found for substitution.");
                 return;
             }
 
-            // User confirmed, send the API request
-            const formData = new FormData();
-            formData.append('base_item_id', baseItemId);
-            formData.append('substitute_item_id', substituteItemId);
+            // Disable the button
+            button.disabled = true;
 
-            fetch("{% url 'waitlist:api_add_substitution' %}", {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert(data.message); // Show success
-                    // Remove the dropdown
-                    select.remove();
-                    // Keep the button disabled, or maybe change its text
-                    button.textContent = "Added!";
-                } else {
-                    throw new Error(data.message);
-                }
-            })
-            .catch(error => {
-                alert(`Error: ${error.message}`);
-                select.remove(); // Remove dropdown
-                button.disabled = false; // Re-enable button on error
-            });
-        });
+            // --- MODIFIED: Use new custom confirm ---
+            const confirmMessage = `Add "<b>${problemItemName}</b>" as a substitute for "<b>${missingItemName}</b>"?`;
 
-        // Add the dropdown to the list item
-        listItem.appendChild(select);
+            const performSubstitution = () => {
+                // This is the code that runs on "Confirm"
+                const formData = new FormData();
+                formData.append('base_item_id', missingItemId);
+                formData.append('substitute_item_id', problemItemId);
+
+                fetch("{% url 'waitlist:api_add_substitution' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // --- MODIFIED: Change color, don't remove ---
+                        listItem.classList.remove('fit-item-problem');
+                        listItem.classList.add('fit-item-accepted-sub');
+
+                        // Remove the button container
+                        const buttonContainer = button.closest('.sub-action-buttons');
+                        if (buttonContainer) {
+                            buttonContainer.remove();
+                        }
+
+                        // Find and update the indented list
+                        const missingList = listItem.querySelector('.fit-item-missing-list');
+                        if (missingList) {
+                            missingList.classList.remove('fit-item-missing-list');
+                            missingList.classList.add('fit-item-sub-for-list'); // Change border color
+
+                            // Re-build content as "Substitutes for..."
+                            let subHtml = `<li class="fit-item-sub-for-item">`;
+                            const missingImg = missingList.querySelector('img');
+                            if (missingImg) {
+                                subHtml += missingImg.outerHTML;
+                            }
+                            subHtml += `<span>Substitutes for: ${missingItemName}</span>`;
+                            subHtml += `</li>`;
+                            missingList.innerHTML = subHtml;
+                        }
+
+                        // Don't show an alert, the visual change is the feedback
+                        // alert(data.message);
+                    } else {
+                        alert(`Error: ${data.message}`);
+                        button.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    alert(`Network Error: ${error.message}`);
+                    button.disabled = false;
+                });
+            };
+
+            // Show the custom confirm box
+            showCustomConfirm(confirmMessage, performSubstitution);
+
+            // Re-enable button if user cancels (the 'cancel' button on the
+            // confirm modal will just hide the modal, so we must re-enable)
+            // We'll add a one-time listener to the cancel button for this.
+            const tempCancelListener = () => {
+                button.disabled = false;
+                confirmCancelBtn.removeEventListener('click', tempCancelListener);
+                confirmOkBtn.removeEventListener('click', tempCancelListener); // Also clear if they click OK
+            };
+            confirmCancelBtn.addEventListener('click', tempCancelListener);
+            confirmOkBtn.addEventListener('click', tempCancelListener); // Clean up listener
+            // --- END MODIFICATION ---
+
+        }
+        // --- No 'deny' logic ---
     }
+    // --- END MODIFICATION ---
 
 
     // Add close listeners for the modal
@@ -615,6 +759,46 @@ It will be filled by the partial template on page load.
 
     // This function sets up all our event listeners
     function initializeWaitlist() {
+
+        // --- NEW: Add listeners for modal footer buttons ---
+        if (isFC) {
+            fitModalAcceptBtn.addEventListener('click', () => {
+                if (currentModalFitId) {
+                    // Reuse the existing FC action handler
+                    // We mock the 'event' object it expects
+                    const mockEvent = {
+                        target: {
+                            closest: () => ({
+                                dataset: {
+                                    fitId: currentModalFitId,
+                                    action: 'approve'
+                                }
+                            })
+                        }
+                    };
+                    handleFCAction(mockEvent);
+                    closeFitModal(); // Close modal after action
+                }
+            });
+
+            fitModalDenyBtn.addEventListener('click', () => {
+                if (currentModalFitId) {
+                    const mockEvent = {
+                        target: {
+                            closest: () => ({
+                                dataset: {
+                                    fitId: currentModalFitId,
+                                    action: 'deny'
+                                }
+                            })
+                        }
+                    };
+                    handleFCAction(mockEvent);
+                    closeFitModal(); // Close modal after action
+                }
+            });
+        }
+        // --- END NEW ---
 
         // --- 4. MODIFIED: Add event delegation ---
         waitlistContainer.addEventListener('click', (event) => {

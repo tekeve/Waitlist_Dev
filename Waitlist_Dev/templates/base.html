@@ -231,7 +231,7 @@
         /* --- NEW: Fit Detail Modal Width --- */
         /* Make the fit detail modal narrower */
         #fit-detail-modal-overlay .modal-content {
-            max-width: 500px;
+            max-width: 700px; /* MODIFIED: Was 600px, 700px is good for single list */
         }
 
         .modal-header {
@@ -414,6 +414,7 @@
                 padding: 2px 5px; /* MODIFIED: Was 3px 6px */
                 border-radius: 4px;
                 white-space: pre; /* Keep whitespace */
+                transition: background-color 0.3s ease, color 0.3s ease; /* Added transition */
             }
 
                 .fit-detail-list li:nth-child(even) {
@@ -425,6 +426,105 @@
                     color: #fff;
                     background: #3a3a3a;
                 }
+
+                /* --- NEW: Highlighting for problem items --- */
+                .fit-detail-list li.fit-item-problem {
+                    background-color: #5d3a00; /* Dark orange background */
+                    color: #ffc107; /* Yellow text */
+                    flex-wrap: wrap;
+                    /* --- NEW: For absolute positioning of sub buttons --- */
+                    position: relative;
+                    /* --- MODIFIED: Padding for just one button --- */
+                    padding-right: 40px;
+                }
+
+                /* --- NEW: Highlighting for accepted sub items --- */
+                .fit-detail-list li.fit-item-accepted-sub {
+                    background-color: #1c4a24; /* Dark green background */
+                    color: #63d471; /* Bright green text */
+                    flex-wrap: wrap;
+                    position: relative;
+                }
+
+        /* --- NEW: Substitution Action Buttons --- */
+        .sub-action-buttons {
+            position: absolute;
+            top: 50%;
+            right: 5px; /* Position from the right edge */
+            transform: translateY(-50%); /* Vertically center */
+            display: flex;
+            gap: 3px; /* Small gap between buttons */
+            z-index: 1; /* Ensure they are above other content if overlapping */
+        }
+
+            .sub-action-buttons .fc-btn {
+                padding: 3px 6px; /* Smaller padding for these buttons */
+                font-size: 0.9em; /* Smaller font size for emojis */
+                line-height: 1; /* Ensures vertical alignment */
+                height: 24px; /* Fixed height to match icon size */
+                width: 24px; /* Fixed width */
+                display: flex; /* Use flex to center content */
+                align-items: center;
+                justify-content: center;
+            }
+        /* --- END NEW --- */
+
+        .fit-item-problem-tag {
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #ffc107;
+            margin-left: 10px;
+        }
+        /* --- END NEW --- */
+
+        /* --- NEW: Styles for indented missing item list --- */
+        .fit-item-missing-list {
+            list-style: none;
+            padding: 4px 0 4px 29px; /* MODIFIED: Reduced top/bottom padding */
+            margin: 4px 0 0 0; /* MODIFIED: Reduced top margin */
+            width: 100%; /* Make it span full width */
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .fit-item-missing-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #ff8a8a; /* Reddish text */
+            font-size: 0.9em;
+        }
+
+            .fit-item-missing-item img {
+                width: 20px; /* Smaller icon */
+                height: 20px;
+            }
+
+        /* --- NEW: Styles for indented "Substitutes For" list --- */
+        .fit-item-sub-for-list {
+            list-style: none;
+            padding: 4px 0 4px 29px; /* MODIFIED: Reduced top/bottom padding */
+            margin: 4px 0 0 0; /* MODIFIED: Reduced top margin */
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .fit-item-sub-for-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #90ee90; /* Light green text */
+            font-size: 0.9em;
+        }
+
+            .fit-item-sub-for-item img {
+                width: 20px;
+                height: 20px;
+            }
+        /* --- END NEW --- */
 
         .fit-modal-icon {
             width: 24px;
@@ -449,16 +549,19 @@
             font-size: 0.9em;
         }
 
-        /* Make it two columns on wider screens */
+        /* --- MODIFICATION: REMOVED two-column grid layout --- */
         @media (min-width: 768px) {
             #fit-detail-modal-overlay .modal-content {
-                max-width: 700px; /* Widen the fit modal */
+                max-width: 700px; /* Widen the fit modal for the single list */
             }
 
+            /*
             .fit-modal-sub-container {
                 grid-template-columns: 1fr 1fr;
             }
+            */
         }
+        /* --- END MODIFICATION --- */
 
 
         .fit-modal-sub-header {
@@ -572,6 +675,40 @@
                 opacity: 0.6;
             }
         /* --- END NEW MODAL STYLES --- */
+
+        /* --- NEW: Custom Confirm Modal --- */
+        #custom-confirm-modal .modal-content {
+            max-width: 450px; /* Smaller than other modals */
+        }
+
+        #custom-confirm-modal .modal-body {
+            padding: 25px;
+            font-size: 1.1em;
+            line-height: 1.5;
+            color: #ddd;
+            display: block; /* Override grid */
+        }
+
+        #custom-confirm-modal .modal-footer {
+            justify-content: flex-end; /* Align buttons right */
+        }
+
+        #custom-confirm-modal .modal-actions .btn-confirm {
+            background-color: #28a745;
+        }
+
+            #custom-confirm-modal .modal-actions .btn-confirm:hover {
+                background-color: #34c254;
+            }
+
+        #custom-confirm-modal .modal-actions .btn-cancel {
+            background-color: #6c757d;
+        }
+
+            #custom-confirm-modal .modal-actions .btn-cancel:hover {
+                background-color: #868e96;
+            }
+        /* --- END NEW --- */
     </style>
 
     <!--
@@ -586,8 +723,7 @@
     {% if user.is_authenticated %}
     {% with main_char=user.eve_characters.first all_chars=user.eve_characters.all %}
 
-    <!-- --- SHARED USER HEADER --- -->
-    <nav class="user-header">
+    <!-- --- SHARED USER HEADER --- --><nav class="user-header">
 
         <a href="{% url 'waitlist:home' %}" class="header-btn add-alt-btn">
             Home
@@ -599,36 +735,28 @@
         We check if the user is in the 'Fleet Commander' group.
         -->
         {% if is_fc %}
-        <!-- Display the FC Admin button if they are in the group -->
-        <a href="{% url 'waitlist:fc_admin' %}" class="header-btn" style="background-color: #c25428;" title="FC Waitlist Admin">
+        <!-- Display the FC Admin button if they are in the group --><a href="{% url 'waitlist:fc_admin' %}" class="header-btn" style="background-color: #c25428;" title="FC Waitlist Admin">
             FC Admin
         </a>
-        <!-- Display the "Add FC Scopes" button -->
-        <a href="{% url 'esi_auth:login' %}?scopes=fc" class="header-btn" style="background-color: #c25428;" title="Add/Refresh FC Scopes">
+        <!-- Display the "Add FC Scopes" button --><a href="{% url 'esi_auth:login' %}?scopes=fc" class="header-btn" style="background-color: #c25428;" title="Add/Refresh FC Scopes">
             Add FC Scopes
         </a>
         {% endif %}
-        <!-- --- END FC ADMIN LINKS --- -->
-        <!-- --- MOVED: X-Up button is now on the left --- -->
-        <!-- This button will be enabled/disabled by the waitlist_view.html template -->
-        <button type="button"
-                class="header-btn xup-btn"
-                id="xup-modal-button"
-                style="margin-right: auto;"
-                disabled>
+        <!-- --- END FC ADMIN LINKS --- --><!-- --- MOVED: X-Up button is now on the left --- --><!-- This button will be enabled/disabled by the waitlist_view.html template --><button type="button"
+                                                                                                                                                                                         class="header-btn xup-btn"
+                                                                                                                                                                                         id="xup-modal-button"
+                                                                                                                                                                                         style="margin-right: auto;"
+                                                                                                                                                                                         disabled>
             X-Up
         </button>
-        <!-- --- END MOVE --- -->
-        <!-- The Profile button, its href will be updated by JS -->
-        <a href="{% if main_char %}{% url 'pilot:pilot_detail' main_char.character_id %}{% endif %}"
-           id="profile-link"
-           class="profile-btn"
-           {% if not main_char %}style="display: none;" {% endif %}>
+        <!-- --- END MOVE --- --><!-- The Profile button, its href will be updated by JS --><a href="{% if main_char %}{% url 'pilot:pilot_detail' main_char.character_id %}{% endif %}"
+                                                                                               id="profile-link"
+                                                                                               class="profile-btn"
+                                                                                               {% if not main_char %}style="display: none;" {% endif %}>
             View Profile
         </a>
 
-        <!-- The character dropdown -->
-        {% if main_char %}
+        <!-- The character dropdown -->{% if main_char %}
         <div class="character-dropdown">
             <div class="dropdown-toggle" id="dropdown-toggle-button">
                 <img id="selected-char-portrait"
@@ -653,23 +781,17 @@
         </div>
         {% endif %}
 
-        <!-- --- MODIFIED: Order restored --- -->
-        <a href="{% url 'esi_auth:login' %}" class="header-btn add-alt-btn">Add Character</a>
+        <!-- --- MODIFIED: Order restored --- --><a href="{% url 'esi_auth:login' %}" class="header-btn add-alt-btn">Add Character</a>
         <a href="{% url 'esi_auth:logout' %}" class="header-btn logout-btn">Log Out</a>
         <!-- --- END MODIFICATION --- -->
-
     </nav>
     {% endwith %}
     {% endif %}
 
-    <!-- --- MAIN CONTENT BLOCK --- -->
-    <!-- Child templates will inject their content here -->
-    <main>
+    <!-- --- MAIN CONTENT BLOCK --- --><!-- Child templates will inject their content here --><main>
         {% block content %}{% endblock %}
     </main>
-    <!-- --- END MAIN CONTENT BLOCK --- -->
-    <!-- --- NEW: X-UP MODAL HTML --- -->
-    {% if user.is_authenticated %}
+    <!-- --- END MAIN CONTENT BLOCK --- --><!-- --- NEW: X-UP MODAL HTML --- -->{% if user.is_authenticated %}
     <div class="modal-overlay" id="xup-modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -678,8 +800,7 @@
             </div>
 
             <div class="modal-body" id="xup-modal-body">
-                <!-- Fit Form -->
-                <div class="form-group">
+                <!-- Fit Form --><div class="form-group">
                     <label for="xup-char-select">Character</label>
                     <select id="xup-char-select" class="form-group">
                         <option value="">-- Select Character --</option>
@@ -692,8 +813,7 @@
                     <textarea id="xup-fit-textarea" placeholder="[Vargur, New Setup]&#10;..."></textarea>
                 </div>
 
-                <!-- Implant Display -->
-                <div class="implant-display">
+                <!-- Implant Display --><div class="implant-display">
                     <h3>Implants</h3>
                     <div id="xup-implant-container">
                         <p style="color: #999; font-style: italic;">Select a character to load implants.</p>
@@ -711,9 +831,7 @@
         </div>
     </div>
     {% endif %}
-    <!-- --- END NEW MODAL --- -->
-    <!-- --- NEW: FC FIT DETAIL MODAL --- -->
-    {% if is_fc %}
+    <!-- --- END NEW MODAL --- --><!-- --- NEW: FC FIT DETAIL MODAL --- -->{% if is_fc %}
     <div class="modal-overlay" id="fit-detail-modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -721,13 +839,16 @@
                 <button class="modal-close-btn" id="fit-detail-modal-close-btn">&times;</button>
             </div>
 
-            <!-- Body is populated by JS -->
-            <div class="modal-body" id="fit-detail-modal-body">
+            <!-- Body is populated by JS --><div class="modal-body" id="fit-detail-modal-body">
                 <div class="modal-spinner"></div>
             </div>
 
             <div class="modal-footer">
                 <div class="modal-actions">
+                    <!-- --- NEW: Accept/Deny Fit Buttons --- -->
+                    <button class="header-btn btn-approve" id="fit-detail-modal-accept-btn" style="display: none;">Accept Fit</button>
+                    <button class="header-btn btn-deny" id="fit-detail-modal-deny-btn" style="display: none;">Deny Fit</button>
+                    <!-- --- END NEW --- -->
                     <button class="header-btn add-alt-btn" id="fit-detail-modal-cancel-btn">Close</button>
                 </div>
             </div>
@@ -735,6 +856,24 @@
     </div>
     {% endif %}
     <!-- --- END NEW FC MODAL --- -->
+    <!-- --- NEW: CUSTOM CONFIRM MODAL --- -->
+    <div class="modal-overlay" id="custom-confirm-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="custom-confirm-title">Confirm Action</h2>
+            </div>
+            <div class="modal-body" id="custom-confirm-message">
+                Are you sure you want to do this?
+            </div>
+            <div class="modal-footer">
+                <div class="modal-actions">
+                    <button class="header-btn btn-cancel" id="custom-confirm-cancel-btn">Cancel</button>
+                    <button class="header-btn btn-confirm" id="custom-confirm-ok-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- --- END NEW: CUSTOM CONFIRM MODAL --- -->
     <!-- --- SHARED JAVASCRIPT --- -->
     <script>
         const dropdownToggleButton = document.getElementById('dropdown-toggle-button');
@@ -904,7 +1043,7 @@
                 if (!rawFit) {
                     alert('Please paste a fit.');
                     return;
-                }
+                    }
 
                 submitModalBtn.disabled = true;
                 submitModalBtn.textContent = 'Submitting...';
@@ -950,8 +1089,7 @@
     </script>
 
 
-    <!-- Child template scripts will go here -->
-    {% block scripts %}{% endblock %}
+    <!-- Child template scripts will go here -->{% block scripts %}{% endblock %}
 
 </body>
 </html>

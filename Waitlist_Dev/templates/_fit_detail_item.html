@@ -1,0 +1,27 @@
+{% load static %}
+{% load humanize %}
+
+<li data-item-id="{{ item.type_id }}"
+    data-item-name="{{ item.type_name }}"
+    data-slot="{{ item.slot }}"
+    data-is-doctrine="{{ item.is_doctrine|yesno:'true,false' }}"
+    data-is-substitutable="{{ item.is_substitutable|yesno:'true,false' }}"
+    class="{% if item.is_doctrine and not item.is_present_in_doctrine %} fit-item-problem{% endif %}">
+    {% if item.type_id %}
+    <img src="https://images.evetech.net/types/{{ item.type_id }}/icon?size=24" alt="{{ item.type_name }}" class="fit-modal-icon">
+    {% else %}
+    <div class="fit-modal-icon-placeholder"></div>
+    {% endif %}
+
+    {{ item.type_name }} ({{ item.quantity|intcomma }}x)
+
+    {% if item.is_doctrine and not item.is_present_in_doctrine %}
+    <span class="fit-item-problem-tag">
+        <a href="#" class="make-sub-link" data-item-id="{{ item.type_id }}">
+            Missing: {{ item.missing_doctrine_item.type_name }} ({{ item.missing_doctrine_item.quantity|intcomma }}x)
+        </a>
+    </span>
+    {% endif %}
+
+    <!-- This is where the substitution dropdown will be injected if needed -->
+</li>

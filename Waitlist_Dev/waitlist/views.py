@@ -482,7 +482,7 @@ def api_get_fit_details(request):
     """
     Returns the parsed fit JSON for the FC's inspection modal.
     
-    --- MODIFIED TO DO COMPARISON ---
+    --- MODIFIED TO DO COMPARISON AND RETURN FULL FIT ---
     """
     if not is_fleet_commander(request.user):
         return JsonResponse({"status": "error", "message": "Not authorized"}, status=403)
@@ -505,89 +505,190 @@ def api_get_fit_details(request):
         # 2. Get the best matching doctrine
         doctrine = DoctrineFit.objects.filter(ship_type__type_id=fit.ship_type_id).first()
         
+        # --- MODIFIED: Create new list for frontend ---
+        full_fit_list_with_status = []
+        
         if not doctrine:
-            # No doctrine found, just return the fit as-is (all items are 'problem_items')
+            # No doctrine found, mark all items (except hull) as problems
+            hull_id_str = str(fit.ship_type_id)
+            for item in full_fit_list:
+                item_id_str = str(item.get('type_id'))
+                if not item_id_str or item_id_str == 'None' or item_id_str == hull_id_str:
+                    item['status'] = 'doctrine' # Treat hull/empty slots as fine
+                else:
+                    item['status'] = 'problem'
+                    item['potential_matches'] = [] # No doctrine, so no matches
+                full_fit_list_with_status.append(item)
+            
             return JsonResponse({
-                "problem_items": full_fit_list,
+                "full_fit_with_status": full_fit_list_with_status,
                 "missing_items": [],
                 "doctrine_name": "No Doctrine Found"
-            }, safe=False)
+            })
 
-        # 3. Get doctrine items and substitution map
+        # 3. Get doctrine items and substitution maps
         doctrine_items_to_fill = Counter(doctrine.get_fit_items())
         sub_groups = FitSubstitutionGroup.objects.prefetch_related('substitutes').all()
+        
+        # sub_map: {'base_id': {base_id, sub_id1, sub_id2}}
         sub_map = {}
+        # reverse_sub_map: {'sub_id': 'base_id'}
+        reverse_sub_map = {}
+        
         for group in sub_groups:
+            base_id_str = str(group.base_item_id)
             allowed_ids = {str(sub.type_id) for sub in group.substitutes.all()}
-            allowed_ids.add(str(group.base_item_id))
-            sub_map[str(group.base_item_id)] = allowed_ids
+            allowed_ids.add(base_id_str) # The base item is always allowed
+            sub_map[base_id_str] = allowed_ids
+            
+            for sub_id_str in allowed_ids:
+                if sub_id_str != base_id_str:
+                    reverse_sub_map[sub_id_str] = base_id_str
 
         # 4. Perform the comparison
         
-        # --- Pass 1: Consume exact matches ---
-        exact_matches = (submitted_items_to_check & doctrine_items_to_fill)
-        submitted_items_to_check.subtract(exact_matches)
-        doctrine_items_to_fill.subtract(exact_matches)
+        # --- Create a copy to track remaining needed items
+        doctrine_items_to_fill_copy = doctrine_items_to_fill.copy()
         
-        # --- Pass 2: Consume known substitutes ---
-        # We must iterate over a copy, as we are modifying the dict
-        for base_id_str, needed_qty in list(doctrine_items_to_fill.items()):
-            if needed_qty == 0:
+        # --- BUGFIX: We no longer use submitted_items_copy here ---
+        # submitted_items_copy = submitted_items_to_check.copy()
+        
+        # --- Lists to gather IDs for SDE enrichment
+        problem_potential_match_ids = set()
+        accepted_sub_base_ids = set()
+
+        # --- Pass 1 & 2: Mark Exact Matches and Accepted Subs
+        for item in full_fit_list:
+            item_id_str = str(item.get('type_id'))
+            if not item_id_str or item_id_str == 'None':
+                item['status'] = 'doctrine' # Empty slots are fine
+                full_fit_list_with_status.append(item)
                 continue
             
-            # Get allowed subs (excluding the base item itself, which we did in pass 1)
-            allowed_sub_ids = sub_map.get(base_id_str, set()) - {base_id_str}
+            # --- BUGFIX: This logic was flawed. ---
+            # qty_in_fit = submitted_items_copy.get(item_id_str, 0)
+            # if qty_in_fit == 0:
+            #    continue
+            # --- END BUGFIX ---
             
-            for sub_id_str in allowed_sub_ids:
-                if sub_id_str in submitted_items_to_check:
-                    # How many of this sub can we use?
-                    can_sub_qty = min(needed_qty, submitted_items_to_check[sub_id_str])
-                    
-                    submitted_items_to_check[sub_id_str] -= can_sub_qty
-                    doctrine_items_to_fill[base_id_str] -= can_sub_qty
-                    needed_qty -= can_sub_qty # Update needed_qty for this loop
-                    
-                    if needed_qty == 0:
-                        break # This doctrine slot is filled
-            
-        # 5. Get final lists of problem/missing IDs
-        # Remove hull from check (it's always a 'match')
-        hull_id_str = str(fit.ship_type_id)
-        if hull_id_str in submitted_items_to_check:
-            del submitted_items_to_check[hull_id_str]
-        if hull_id_str in doctrine_items_to_fill:
-            del doctrine_items_to_fill[hull_id_str]
+            # --- NEW: Get quantity for *this specific item line* ---
+            qty_in_fit = item.get('quantity', 1) # Get qty from the parsed list item
 
-        problem_item_ids = {k for k, v in submitted_items_to_check.items() if v > 0}
-        missing_item_ids = {k for k, v in doctrine_items_to_fill.items() if v > 0}
+            # Check for exact match
+            if item_id_str in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[item_id_str] > 0:
+                item['status'] = 'doctrine'
+                doctrine_items_to_fill_copy[item_id_str] -= qty_in_fit
+                # submitted_items_copy[item_id_str] -= qty_in_fit # <-- REMOVED
+            
+            # Check for accepted substitute
+            elif item_id_str in reverse_sub_map:
+                base_item_id = reverse_sub_map[item_id_str]
+                if base_item_id in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[base_item_id] > 0:
+                    item['status'] = 'accepted_sub'
+                    item['substitutes_for_id'] = base_item_id # Store ID
+                    accepted_sub_base_ids.add(base_item_id)
+                    doctrine_items_to_fill_copy[base_item_id] -= qty_in_fit
+                    # submitted_items_copy[item_id_str] -= qty_in_fit # <-- REMOVED
+            
+            full_fit_list_with_status.append(item)
+
+        # --- Pass 3: Mark Problems
+        problem_types_map = {} # {p_id: p_type_obj}
+        missing_types_map = {} # {m_id: m_type_obj}
         
-        # 6. Enrich the lists
+        for item in full_fit_list_with_status:
+            if 'status' in item: # Already processed
+                continue
+                
+            item_id_str = str(item.get('type_id'))
+            item['status'] = 'problem'
+            item['potential_matches'] = [] # Default
+            
+            # Find potential matches from the same group
+            try:
+                p_type = EveType.objects.get(type_id=item_id_str)
+                problem_types_map[p_type.type_id] = p_type
+                
+                # Find missing doctrine items from the same group
+                missing_ids_in_group = {
+                    m_id_str for m_id_str, qty in doctrine_items_to_fill_copy.items() 
+                    if qty > 0
+                }
+                
+                if missing_ids_in_group:
+                    missing_in_group = EveType.objects.filter(
+                        type_id__in=missing_ids_in_group, 
+                        group=p_type.group
+                    )
+                    for m_type in missing_in_group:
+                        # --- FIX: Ensure we only suggest matches that are still needed ---
+                        if doctrine_items_to_fill_copy.get(str(m_type.type_id), 0) > 0:
+                            missing_types_map[m_type.type_id] = m_type
+                            problem_potential_match_ids.add(m_type.type_id)
+                            item['potential_matches'].append(m_type.type_id) # Store ID
+            except EveType.DoesNotExist:
+                pass # Unknown item, no potential matches
+
+
+        # 5. Enrich the lists
         
-        # Find all problem items from the *original* parsed list
-        problem_items = [
-            item for item in full_fit_list 
-            if str(item.get('type_id')) in problem_item_ids
-        ]
-        
-        # Get EveType info for missing items
-        missing_items_data = EveType.objects.filter(type_id__in=[int(i) for i in missing_item_ids])
+        # --- Get EveType info for all referenced IDs
+        all_referenced_ids = problem_potential_match_ids | accepted_sub_base_ids
+        referenced_types = {
+            str(t.type_id): t for t in EveType.objects.filter(type_id__in=all_referenced_ids)
+        }
+
+        # --- Loop back and populate names/icons
+        for item in full_fit_list_with_status:
+            if item['status'] == 'accepted_sub':
+                base_id = str(item['substitutes_for_id'])
+                base_type = referenced_types.get(base_id)
+                if base_type:
+                    item['substitutes_for'] = [{ # Store as list
+                        "name": base_type.name, 
+                        "type_id": base_type.type_id, 
+                        "icon_url": base_type.icon_url,
+                        # Can't easily get quantity here, but not critical
+                        "quantity": doctrine_items_to_fill.get(base_id, 0) 
+                    }]
+            
+            elif item['status'] == 'problem':
+                matches = []
+                for match_id in item.get('potential_matches', []):
+                    match_type = referenced_types.get(str(match_id))
+                    # --- FIX: Check match_type and that it's still needed ---
+                    if match_type and doctrine_items_to_fill_copy.get(str(match_id), 0) > 0:
+                        matches.append({
+                            "name": match_type.name, 
+                            "type_id": match_type.type_id, 
+                            "icon_url": match_type.icon_url,
+                            "quantity": doctrine_items_to_fill_copy.get(str(match_id), 0)
+                        })
+                item['potential_matches'] = matches
+
+        # 6. Get EveType info for the "Missing Items" column
+        final_missing_ids = {
+            m_id_str for m_id_str, qty in doctrine_items_to_fill_copy.items() 
+            if qty > 0 and str(m_id_str) != str(fit.ship_type_id)
+        }
+        missing_types = EveType.objects.filter(type_id__in=final_missing_ids)
         missing_items = [{
             "type_id": t.type_id, 
             "name": t.name, 
             "icon_url": t.icon_url, 
-            "quantity": doctrine_items_to_fill[str(t.type_id)] # Show how many are missing
-        } for t in missing_items_data]
+            "quantity": doctrine_items_to_fill_copy[str(t.type_id)]
+        } for t in missing_types]
 
         return JsonResponse({
-            "problem_items": problem_items,
-            "missing_items": missing_items,
+            "full_fit_with_status": full_fit_list_with_status,
+            "missing_items": missing_items, # Still useful for the "Make Sub" dropdown
             "doctrine_name": doctrine.name
-        }, safe=False)
+        })
 
     except Http404:
         return JsonResponse({"status": "error", "message": "Fit not found"}, status=404)
     except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
 # --- END MODIFICATION ---
 
 
