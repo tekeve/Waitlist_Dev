@@ -6,7 +6,9 @@ from waitlist.models import EveCharacter, ShipFit, Fleet, FleetWaitlist, Doctrin
 # --- NEW IMPORTS for DoctrineFit Admin ---
 from django import forms
 from django.core.exceptions import ValidationError
+# --- MODIFIED: Import renamed function ---
 from waitlist.fit_parser import parse_eft_to_json_summary
+# --- END MODIFIED ---
 import json
 # --- END NEW IMPORTS ---
 

@@ -1,7 +1,4 @@
-# --- This file is a stub for future, more complex fit validation ---
-# We are no longer using eveparse here.
-
-# --- NEW: All parsing logic is now centralized here ---
+# --- All parsing logic is now centralized here ---
 import re
 import json
 from collections import Counter
@@ -9,8 +6,9 @@ import requests
 
 from esi.clients import EsiClientProvider
 from pilot.models import EveType, EveGroup
-from .models import ShipFit
-# from .models import FitCheckRule # This model doesn't exist yet
+# --- MODIFIED: Added imports for moved logic ---
+from .models import ShipFit, DoctrineFit, FitSubstitutionGroup
+# --- END MODIFIED ---
 
 # --- HELPER FUNCTIONS (Copied from views.py) ---
 
@@ -127,13 +125,13 @@ def get_or_cache_eve_type(item_name):
 # --- END MODIFIED FUNCTIONS ---
 
 
-# --- NEW PARSING FUNCTION FOR ADMIN ---
-
-def parse_eft_to_json_summary(raw_fit_original: str):
+# --- NEW: Centralized EFT Parsing Function ---
+def parse_eft_fit(raw_fit_original: str):
     """
-    Parses a raw EFT fit string and returns the ship_type object
-    and a {type_id: quantity} summary dictionary.
-    Used by the DoctrineFit admin form.
+    Parses a raw EFT fit string and returns the ship_type object,
+    a list of dicts for the JSON blob, and a Counter summary.
+    
+    Raises ValueError on parsing failures.
     """
     # 1. Minimal sanitization
     raw_fit_no_nbsp = raw_fit_original.replace(u'\xa0', u' ')
@@ -156,10 +154,20 @@ def parse_eft_to_json_summary(raw_fit_original: str):
     if not ship_type:
         raise ValueError(f"Ship hull '{ship_name}' could not be found in ESI. Check spelling.")
     
+    ship_type_id = ship_type.type_id
+    
     # 4. Parse all items in the fit
+    parsed_fit_list = [] # For storing JSON
     fit_summary_counter = Counter() # For auto-approval
     
-    # Add the hull
+    # Add the hull to both
+    parsed_fit_list.append({
+        "raw_line": lines[0],
+        "type_id": ship_type.type_id,
+        "name": ship_type.name,
+        "icon_url": ship_type.icon_url,
+        "quantity": 1
+    })
     fit_summary_counter[ship_type.type_id] += 1
 
     # Regex to find item names and quantities
@@ -168,31 +176,168 @@ def parse_eft_to_json_summary(raw_fit_original: str):
     # Loop through the rest of the lines
     for line in lines[1:]:
         if line.startswith('[') and line.endswith(']'):
-            continue # Skip empty slots
+            # This is an empty slot, e.g., [Empty Low Slot]
+            parsed_fit_list.append({
+                "raw_line": line,
+                "type_id": None,
+                "name": line,
+                "icon_url": None,
+                "quantity": 0
+            })
+            continue
 
+        # This is an item
         match = item_regex.match(line)
         if not match:
             continue
             
         item_name = match.group(1).strip()
-        # --- THIS IS THE FIX ---
-        # The quantity is in group 2, not 3
         quantity = int(match.group(2)) if match.group(2) else 1
-        # --- END FIX ---
         
         if not item_name:
             continue
 
+        # Get or cache the item
         item_type = get_or_cache_eve_type(item_name)
         
         if item_type:
+            # Add to our JSON list for the modal
+            parsed_fit_list.append({
+                "raw_line": line,
+                "type_id": item_type.type_id,
+                "name": item_type.name,
+                "icon_url": item_type.icon_url,
+                "quantity": quantity
+            })
+            # Add to our summary dict for approval
             fit_summary_counter[item_type.type_id] += quantity
         else:
-            # Could not find this item
-            raise ValueError(f"Unknown item in fit: '{item_name}'. Check spelling or SDE cache.")
+            # Could not find this item in ESI
+            parsed_fit_list.append({
+                "raw_line": line,
+                "type_id": None,
+                "name": f"Unknown Item: {item_name}",
+                "icon_url": None,
+                "quantity": quantity
+            })
+            # Raise an error to stop submission of invalid fits
+            raise ValueError(f"Unknown item in fit: '{item_name}'. Check spelling.")
+
+    return ship_type, parsed_fit_list, fit_summary_counter
+# --- END NEW Centralized EFT Parsing Function ---
+
+
+# --- NEW PARSING FUNCTION FOR ADMIN ---
+
+def parse_eft_to_json_summary(raw_fit_original: str):
+    """
+    Parses a raw EFT fit string and returns the ship_type object
+    and a {type_id: quantity} summary dictionary.
+    Used by the DoctrineFit admin form.
+    
+    --- MODIFIED: This now calls the centralized parser ---
+    """
+    try:
+        ship_type, _, fit_summary_counter = parse_eft_fit(raw_fit_original)
+        return ship_type, dict(fit_summary_counter)
+    except ValueError as e:
+        # Re-raise as a generic exception for the admin form
+        raise Exception(str(e))
+# --- END MODIFIED FUNCTION ---
+
+
+# --- MOVED FROM views.py: AUTO-APPROVAL HELPER ---
+def check_fit_against_doctrines(ship_type_id, submitted_fit_summary: dict):
+    """
+    Compares a submitted fit summary against all matching doctrines.
+    
+    --- MODIFIED: Now uses FitSubstitutionGroup ---
+    """
+    if not ship_type_id:
+        return None, 'PENDING', ShipFit.FitCategory.NONE
+
+    # --- 1. Build the substitution map ---
+    # This map will look like:
+    # { 'base_item_id_str': {'base_item_id_str', 'sub_1_id_str', 'sub_2_id_str'}, ... }
+    sub_groups = FitSubstitutionGroup.objects.prefetch_related('substitutes').all()
+    sub_map = {}
+    for group in sub_groups:
+        allowed_ids = {str(sub.type_id) for sub in group.substitutes.all()}
+        allowed_ids.add(str(group.base_item_id)) # The base item is always allowed
+        
+        # Map the base item ID to this set of allowed IDs
+        sub_map[str(group.base_item_id)] = allowed_ids
+
+
+    # --- 2. Get doctrines and submitted fit ---
+    matching_doctrines = DoctrineFit.objects.filter(ship_type__type_id=ship_type_id)
+    
+    if not matching_doctrines.exists():
+        return None, 'PENDING', ShipFit.FitCategory.NONE # No doctrines for this hull
+
+    # Make a Counter of the submitted fit (with string keys)
+    submitted_items_to_use = Counter({str(k): v for k, v in submitted_fit_summary.items()})
+
+    # --- 3. Loop through each doctrine and check for a match ---
+    for doctrine in matching_doctrines:
+        # Get the doctrine's "shopping list"
+        doctrine_items_to_match = Counter(doctrine.get_fit_items())
+        
+        # Make a *copy* of the submitted fit to "use up" items
+        submitted_items_snapshot = submitted_items_to_use.copy()
+        
+        fit_matches_doctrine = True
+
+        # --- 4. Check every item in the doctrine's shopping list ---
+        for doctrine_type_id, required_quantity in doctrine_items_to_match.items():
             
-    # Return the ship object and the summary dict
-    return ship_type, dict(fit_summary_counter)
+            # Get the set of allowed IDs for this doctrine "slot"
+            # Use sub_map.get() to provide a default (just the item itself)
+            allowed_ids_for_slot = sub_map.get(doctrine_type_id, {doctrine_type_id})
+            
+            found_quantity = 0
+            for allowed_id in allowed_ids_for_slot:
+                if allowed_id in submitted_items_snapshot:
+                    # Get how many of this allowed item the user has
+                    qty = submitted_items_snapshot[allowed_id]
+                    
+                    # Add to our found quantity
+                    found_quantity += qty
+                    
+                    # "Use up" these items so they can't match another slot
+                    del submitted_items_snapshot[allowed_id]
+            
+            # Did we find enough items (including substitutes) for this slot?
+            if found_quantity < required_quantity:
+                fit_matches_doctrine = False
+                break # This doctrine fails, stop checking its items
+
+        if not fit_matches_doctrine:
+            continue # This doctrine failed, try the next one
+
+        # --- 5. Check for extra, un-used items ---
+        # We matched all required items. Now, check for extras.
+        # Remove the hull, which is *expected* to be in both.
+        if str(ship_type_id) in submitted_items_snapshot:
+            # Check if they fit *more* hulls than required
+            if submitted_items_snapshot[str(ship_type_id)] > doctrine_items_to_match[str(ship_type_id)]:
+                 fit_matches_doctrine = False # e.g., fit 2 Vargurs?
+            del submitted_items_snapshot[str(ship_type_id)]
+        
+        # Check if any items are "left over"
+        if len(submitted_items_snapshot) > 0:
+            # User has extra modules not specified in the doctrine.
+            fit_matches_doctrine = False
+            continue # This doctrine fails, try the next one
+
+        # --- 6. Perfect Match! ---
+        # If we get here, fit_matches_doctrine is True AND there are no extra items.
+        # This is a perfect match (with substitutions).
+        return doctrine, 'APPROVED', doctrine.category
+
+    # Looped through all doctrines, no perfect match found.
+    return None, 'PENDING', ShipFit.FitCategory.NONE
+# --- END MOVED HELPER ---
 
 
 # --- This is the original function, left as a placeholder ---

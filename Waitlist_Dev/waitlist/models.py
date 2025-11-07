@@ -105,6 +105,7 @@ class ShipFit(models.Model):
         SNIPER = 'SNIPER', 'Sniper'
         MAR_DPS = 'MAR_DPS', 'MAR DPS'
         MAR_SNIPER = 'MAR_SNIPER', 'MAR Sniper'
+        OTHER = 'OTHER', 'Other' # <-- ADDED THIS NEW CATEGORY
 
     # --- UPDATED: Link to the Waitlist directly ---
     waitlist = models.ForeignKey(

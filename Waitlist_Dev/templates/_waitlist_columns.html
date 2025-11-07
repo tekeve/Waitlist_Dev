@@ -91,15 +91,17 @@ by the polling JavaScript.
     </ul>
 </div>
 
-<!-- --- DPS COLUMN --- -->
+<!-- --- LOGI COLUMN --- -->
 <div class="waitlist-column">
     <div class="column-header status-APPROVED">
-        <h2>DPS</h2>
-        <span class="column-count">{{ dps_fits.count }}</span>
+        <h2>LOGI</h2>
+        <span class="column-count">{{ logi_fits.count }}</span>
     </div>
+    <!-- Placeholder for Logi cards -->
     <ul class="fit-card-list">
-        {% for fit in dps_fits %}
+        {% for fit in logi_fits %}
         <li class="fit-card status-{{ fit.status }}" id="fit-card-{{ fit.id }}" data-submitted-time="{{ fit.submitted_at.isoformat }}">
+
             <div class="card-header">
                 <img src="https://images.evetech.net/characters/{{ fit.character.character_id }}/portrait?size=64"
                      alt="{{ fit.character.character_name }} portrait"
@@ -171,17 +173,15 @@ by the polling JavaScript.
     </ul>
 </div>
 
-<!-- --- LOGI COLUMN --- -->
+<!-- --- DPS COLUMN --- -->
 <div class="waitlist-column">
     <div class="column-header status-APPROVED">
-        <h2>LOGI</h2>
-        <span class="column-count">{{ logi_fits.count }}</span>
+        <h2>DPS</h2>
+        <span class="column-count">{{ dps_fits.count }}</span>
     </div>
-    <!-- Placeholder for Logi cards -->
     <ul class="fit-card-list">
-        {% for fit in logi_fits %}
+        {% for fit in dps_fits %}
         <li class="fit-card status-{{ fit.status }}" id="fit-card-{{ fit.id }}" data-submitted-time="{{ fit.submitted_at.isoformat }}">
-
             <div class="card-header">
                 <img src="https://images.evetech.net/characters/{{ fit.character.character_id }}/portrait?size=64"
                      alt="{{ fit.character.character_name }} portrait"
@@ -335,58 +335,16 @@ by the polling JavaScript.
     </ul>
 </div>
 
-<!-- --- NEW: MAR_DPS COLUMN --- -->
+<!-- --- REMOVED: MAR_DPS COLUMN --- -->
+<!-- --- REMOVED: MAR_SNIPER COLUMN --- -->
+<!-- --- NEW: OTHER COLUMN --- -->
 <div class="waitlist-column">
     <div class="column-header status-APPROVED">
-        <h2>MAR_DPS</h2>
-        <span class="column-count">{{ mar_dps_fits.count }}</span>
+        <h2>OTHER</h2>
+        <span class="column-count">{{ other_fits.count }}</span>
     </div>
     <ul class="fit-card-list">
-        {% for fit in mar_dps_fits %}
-        <li class="fit-card status-{{ fit.status }}" id="fit-card-{{ fit.id }}" data-submitted-time="{{ fit.submitted_at.isoformat }}">
-            <div class="card-header">
-                <img src="https://images.evetech.net/characters/{{ fit.character.character_id }}/portrait?size=64"
-                     alt="{{ fit.character.character_name }} portrait"
-                     class="pilot-portrait">
-                <span class="pilot-name">{{ fit.character.character_name }}</span>
-                <span class="wait-timer"></span>
-            </div>
-            <div class="card-body">
-                <div class="card-body-row">
-                    <div class="card-fit-details">
-                        <div class="fit-info"><strong>HULL:</strong> <span class="placeholder">{{ fit.ship_name|default:"-" }}</span></div>
-                        <div class="fit-info"><strong>TANK:</strong> <span class="placeholder">{{ fit.tank_type|default:"-" }}</span></div>
-                        <div class="fit-issues"><strong>ISSUES:</strong> <span class="placeholder">{{ fit.fit_issues|default:"-" }}</span></div>
-                        <div class="pilot-stats">
-                            <div class="stat-item"><strong>TOTAL HRS:</strong> <span class="placeholder">{{ fit.total_fleet_hours|default:0 }}</span></div>
-                            <div class="stat-item"><strong>HULL HRS:</strong> <span class="placeholder">{{ fit.hull_fleet_hours|default:0 }}</span></div>
-                        </div>
-                    </div>
-                    <div class="ship-image-container js-open-fit-modal"
-                         data-fit-id="{{ fit.id }}"
-                         title="Click to view fit">
-                        {% if fit.ship_type_id %}<img src="https://images.evetech.net/types/{{ fit.ship_type_id }}/render?size=64" alt="{{ fit.ship_name }} hull">{% endif %}
-                    </div>
-                </div>
-                {% if is_fc %}
-                <div class="fc-actions">
-                    <button class="fc-btn btn-deny" data-fit-id="{{ fit.id }}" data-action="deny" title="Remove from Waitlist">&#x274C;</button>
-                </div>
-                {% endif %}
-            </div>
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-
-<!-- --- NEW: MAR_SNIPER COLUMN --- -->
-<div class="waitlist-column">
-    <div class="column-header status-APPROVED">
-        <h2>MAR_SNIPER</h2>
-        <span class="column-count">{{ mar_sniper_fits.count }}</span>
-    </div>
-    <ul class="fit-card-list">
-        {% for fit in mar_sniper_fits %}
+        {% for fit in other_fits %}
         <li class="fit-card status-{{ fit.status }}" id="fit-card-{{ fit.id }}" data-submitted-time="{{ fit.submitted_at.isoformat }}">
             <div class="card-header">
                 <img src="https://images.evetech.net/characters/{{ fit.character.character_id }}/portrait?size=64"

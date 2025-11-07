@@ -20,9 +20,9 @@
     }
 
     .waitlist-column {
-        flex: 1 0 300px; /* Flex-grow, flex-shrink, flex-basis (min-width) */
-        min-width: 300px;
-        max-width: 340px;
+        flex: 1 0 280px; /* MODIFIED: Was 300px */
+        min-width: 280px; /* MODIFIED: Was 300px */
+        max-width: 320px; /* MODIFIED: Was 340px */
         display: flex;
         flex-direction: column;
         background: none; /* MODIFIED: Removed column background */
@@ -65,7 +65,7 @@
 
     .fit-card-list {
         list-style: none;
-        padding: 10px;
+        padding: 5px; /* MODIFIED: Was 8px */
         margin: 0;
         /* Make the list scrollable, not the whole column */
         overflow-y: auto;
@@ -96,21 +96,21 @@
         background: #333; /* MODIFIED: Re-added background */
         border: 1px solid #444; /* MODIFIED: Re-added border */
         border-radius: 5px;
-        margin-bottom: 10px;
+        margin-bottom: 5px; /* MODIFIED: Was 8px */
         box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* MODIFIED: Re-added shadow */
     }
 
     .card-header {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 10px;
+        gap: 8px; /* MODIFIED: Was 10px */
+        padding: 6px; /* MODIFIED: Was 8px */
         border-bottom: 1px solid #444;
     }
 
     .pilot-portrait {
-        width: 48px;
-        height: 48px;
+        width: 40px; /* MODIFIED: Was 48px */
+        height: 40px; /* MODIFIED: Was 48px */
         border-radius: 5px;
         border: 1px solid #555;
     }
@@ -137,7 +137,7 @@
     }
 
     .card-body {
-        padding: 10px;
+        padding: 6px; /* MODIFIED: Was 8px */
         font-size: 0.9em;
     }
 
@@ -169,8 +169,8 @@
         }
 
         .ship-image-container img {
-            width: 64px;
-            height: 64px;
+            width: 56px; /* MODIFIED: Was 64px */
+            height: 56px; /* MODIFIED: Was 64px */
             display: block; /* Remove bottom space */
         }
     /* --- END NEW --- */
@@ -241,8 +241,8 @@
         display: flex;
         gap: 5px;
         border-top: 1px solid #444;
-        padding: 8px 10px 5px 10px;
-        margin-top: 10px;
+        padding: 6px 8px 4px 8px; /* MODIFIED: Was 8px 10px 5px 10px */
+        margin-top: 8px; /* MODIFIED: Was 10px */
         /* --- MODIFIED: Align buttons to the right --- */
         justify-content: flex-end;
     }
