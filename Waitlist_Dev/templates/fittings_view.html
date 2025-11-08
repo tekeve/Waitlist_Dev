@@ -191,9 +191,7 @@
 <div class="container">
     <h1>Doctrine Fittings</h1>
 
-    <!-- --- !! NEW DEBUGGING LINE !! --- -->
-    <!-- DEBUG: Template received {{ doctrine_fits.count }} fits. -->
-    <!-- --- !! END DEBUGGING LINE !! --- -->
+    <!-- --- DEBUGGING LINES REMOVED --- -->
 
     <div class="fittings-grid">
         <!--
@@ -202,9 +200,7 @@
         -->
         {% for fit in doctrine_fits %}
 
-        <!-- --- !! NEW DEBUGGING LINE !! --- -->
-        <!-- DEBUG: Rendering fit: {{ fit.name }} -->
-        <!-- --- !! END DEBUGGING LINE !! --- -->
+        <!-- --- DEBUGGING LINES REMOVED --- -->
 
         <div class="fit-card">
             <div class="fit-header">
@@ -274,9 +270,7 @@
         -->
         {% empty %}
 
-        <!-- --- !! NEW DEBUGGING LINE !! --- -->
-        <!-- DEBUG: The 'doctrine_fits' loop was empty. -->
-        <!-- --- !! END DEBUGGING LINE !! --- -->
+        <!-- --- DEBUGGING LINES REMOVED --- -->
 
         <p>There are no doctrine fits configured in the database.</p>
         {% endfor %} <!-- This 'endfor' closes the OUTER loop -->
