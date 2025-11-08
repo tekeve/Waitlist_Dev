@@ -201,9 +201,16 @@ class DoctrineFitAdmin(admin.ModelAdmin):
         # --- END MODIFICATION ---
     )
     
-    # --- MODIFIED: Make auto-populated fields read-only ---
-    readonly_fields = ('fit_items_json', 'raw_fit_eft', 'parsed_fit_json')
-    # --- END MODIFICATION ---
+    # ---
+    # --- THE FIX IS HERE ---
+    # ---
+    # We remove 'fit_items_json', 'raw_fit_eft', and 'parsed_fit_json'
+    # from readonly_fields so the form's clean() method can save them.
+    # We will make 'ship_type' readonly instead, as it's set by the parser.
+    readonly_fields = ('ship_type',)
+    # ---
+    # --- END THE FIX ---
+    # ---
 
 
 # --- NEW: Admin for FitSubstitutionGroup ---

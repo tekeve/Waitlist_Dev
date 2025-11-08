@@ -190,7 +190,9 @@ def home(request):
     return render(request, 'waitlist_view.html', context)
     
 
-# --- NEW: Fittings View ---
+# ---
+# --- MODIFIED: Fittings View ---
+# ---
 @login_required
 def fittings_view(request):
     """
@@ -199,17 +201,51 @@ def fittings_view(request):
     # 1. Get all doctrine fits, pre-fetch the ship_type
     doctrine_fits = DoctrineFit.objects.all().select_related('ship_type').order_by('name')
     
-    # 2. Get context variables needed by base.html
+    # --- !! DEBUGGING LINE REMOVED !! ---
+    # print(f"--- DEBUG: fittings_view query results: {doctrine_fits} ---")
+    # --- !! DEBUGGING LINE REMOVED !! ---
+    category_order = [
+        (ShipFit.FitCategory.LOGI, ShipFit.FitCategory.LOGI.label),
+        (ShipFit.FitCategory.DPS, ShipFit.FitCategory.DPS.label),
+        (ShipFit.FitCategory.SNIPER, ShipFit.FitCategory.SNIPER.label),
+        (ShipFit.FitCategory.MAR_DPS, ShipFit.FitCategory.MAR_DPS.label),
+        (ShipFit.FitCategory.MAR_SNIPER, ShipFit.FitCategory.MAR_SNIPER.label),
+        (ShipFit.FitCategory.OTHER, ShipFit.FitCategory.OTHER.label),
+    ]
+    
+    # 2. Get all doctrine fits, pre-fetch ship_type
+    all_fits = DoctrineFit.objects.exclude(category=ShipFit.FitCategory.NONE) \
+                                  .select_related('ship_type') \
+                                  .order_by('name') # Order by name, we'll group in Python
+
+    # 3. Group the fits by their category key
+    fits_by_category = {}
+    for fit in all_fits:
+        if fit.category not in fits_by_category:
+            fits_by_category[fit.category] = []
+        fits_by_category[fit.category].append(fit)
+
+    # 4. Build the final ordered list for the template
+    # This will be a list of tuples: [ ('Logi', [fit1, fit2]), ('DPS', [fit3, fit4]), ... ]
+    categorized_fits = []
+    for category_key, category_name in category_order:
+        fits = fits_by_category.get(category_key, [])
+        if fits: # Only add the category if there are fits in it
+            categorized_fits.append((category_name, fits))
+    
+    # 5. Get context variables needed by base.html
     is_fc = request.user.groups.filter(name='Fleet Commander').exists()
     user_characters = EveCharacter.objects.filter(user=request.user)
     
     context = {
-        'doctrine_fits': doctrine_fits,
+        'categorized_fits': categorized_fits, # Pass the new grouped list
         'is_fc': is_fc,
         'user_characters': user_characters,
     }
     return render(request, 'fittings_view.html', context)
-# --- END NEW VIEW ---
+# ---
+# --- END MODIFICATION ---
+# ---
 
 
 # --- NEW API VIEW for Modal Fit Submission ---
@@ -611,7 +647,7 @@ def api_add_substitution(request):
         })
 
     except EveType.DoesNotExist:
-        return JsonResponse({"status": "error", "message": "Item not found in database."}, status=404)
+        return JsonResponse({"status": "error", "message": "Item not found in database."}, status=4404)
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 # --- END NEW VIEW ---

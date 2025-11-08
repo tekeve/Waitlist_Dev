@@ -191,12 +191,26 @@
 <div class="container">
     <h1>Doctrine Fittings</h1>
 
+    <!-- --- !! NEW DEBUGGING LINE !! --- -->
+    <!-- DEBUG: Template received {{ doctrine_fits.count }} fits. -->
+    <!-- --- !! END DEBUGGING LINE !! --- -->
+
     <div class="fittings-grid">
+        <!--
+        This is the OUTER loop.
+        It iterates over 'doctrine_fits'.
+        -->
         {% for fit in doctrine_fits %}
+
+        <!-- --- !! NEW DEBUGGING LINE !! --- -->
+        <!-- DEBUG: Rendering fit: {{ fit.name }} -->
+        <!-- --- !! END DEBUGGING LINE !! --- -->
+
         <div class="fit-card">
             <div class="fit-header">
                 <h2>{{ fit.name }}</h2>
-                <span>{{ fit.ship_type.name }}</span>
+                <!-- --- MODIFICATION: Added check for ship_type --- -->
+                <span>{% if fit.ship_type %}{{ fit.ship_type.name }}{% else %}Unknown Ship{% endif %}</span>
             </div>
 
             <div class="fit-body">
@@ -207,12 +221,25 @@
                 {% endif %}
 
                 <div class="fit-content">
+                    <!-- --- MODIFICATION: Added check for ship_type --- -->
+                    {% if fit.ship_type %}
                     <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/render?size=256"
                          alt="{{ fit.ship_type.name }}"
                          class="fit-ship-render">
+                    {% else %}
+                    <!-- Placeholder if ship render is missing -->
+                    <img src="https://placehold.co/200x200/2a2a2a/999?text=No+Ship+Data"
+                         alt="No Ship Render"
+                         class="fit-ship-render">
+                    {% endif %}
+                    <!-- --- END MODIFICATION --- -->
 
                     <div class="fit-display-container">
                         <ul class="fit-detail-list">
+                            <!--
+                            This is the INNER loop.
+                            It iterates over the items *inside* one fit.
+                            -->
                             {% for item in fit.get_parsed_fit_list %}
                             <li title="{{ item.name }}">
                                 {% if item.icon_url %}
@@ -225,8 +252,9 @@
                                 <span>{{ item.raw_line|escape }}</span>
                             </li>
                             {% empty %}
+                            <!-- This 'empty' belongs to the INNER loop -->
                             <li>Fit data is missing.</li>
-                            {% endfor %}
+                            {% endfor %} <!-- This 'endfor' closes the INNER loop -->
                         </ul>
                     </div>
                 </div>
@@ -240,9 +268,18 @@
         <!-- Hidden textarea to store the raw fit for copying -->
         <textarea class="hidden-eft-fit" id="eft-fit-{{ fit.id }}" readonly>{{ fit.raw_fit_eft }}</textarea>
 
+        <!--
+        This 'empty' belongs to the OUTER loop.
+        It comes *before* the final 'endfor'.
+        -->
         {% empty %}
+
+        <!-- --- !! NEW DEBUGGING LINE !! --- -->
+        <!-- DEBUG: The 'doctrine_fits' loop was empty. -->
+        <!-- --- !! END DEBUGGING LINE !! --- -->
+
         <p>There are no doctrine fits configured in the database.</p>
-        {% endfor %}
+        {% endfor %} <!-- This 'endfor' closes the OUTER loop -->
     </div>
 </div>
 {% endblock %}
@@ -261,6 +298,7 @@
                 if (textarea) {
                     try {
                         textarea.select();
+                        // Use document.execCommand as navigator.clipboard might be restricted
                         document.execCommand('copy');
 
                         // Give user feedback
@@ -271,7 +309,7 @@
                     } catch (err) {
                         console.error('Failed to copy text: ', err);
                         button.textContent = 'Failed to Copy';
-                         setTimeout(() => {
+                        setTimeout(() => {
                             button.textContent = 'Copy EFT Fit';
                         }, 2000);
                     }
