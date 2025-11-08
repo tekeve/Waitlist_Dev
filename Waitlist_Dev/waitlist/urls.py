@@ -31,6 +31,20 @@ urlpatterns = [
     # --- NEW: API for creating the layout ---
     path('api/fc_create_default_layout/', views.api_fc_create_default_layout, name='api_fc_create_default_layout'),
     # ---
+    # --- NEW: API for adding/deleting squads ---
+    # ---
+    path('api/fc_add_squad/', views.api_fc_add_squad, name='api_fc_add_squad'),
+    path('api/fc_delete_squad/', views.api_fc_delete_squad, name='api_fc_delete_squad'),
+    # ---
+    # --- NEW: API for adding/deleting wings ---
+    # ---
+    path('api/fc_add_wing/', views.api_fc_add_wing, name='api_fc_add_wing'),
+    path('api/fc_delete_wing/', views.api_fc_delete_wing, name='api_fc_delete_wing'),
+    # ---
+    # --- NEW: API for refreshing structure ---
+    # ---
+    path('api/fc_refresh_structure/', views.api_fc_refresh_structure, name='api_fc_refresh_structure'),
+    # ---
     # --- END NEW API URLS ---
     # ---
 ]

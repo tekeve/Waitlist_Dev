@@ -79,6 +79,54 @@ def get_refreshed_token_for_character(user, character):
 # --- END NEW HELPER ---
 
 
+# ---
+# --- NEW: HELPER FUNCTION (Moved from api_fc_manage_waitlist)
+# ---
+def _update_fleet_structure(esi, fc_character, token, fleet_id, fleet_obj):
+    """
+    Pulls ESI fleet structure and saves it to the DB.
+    *** This preserves existing category mappings. ***
+    """
+    # 1. Get wings from ESI
+    wings = esi.client.Fleets.get_fleets_fleet_id_wings(
+        fleet_id=fleet_id,
+        token=token.access_token
+    ).results()
+    
+    # 2. Get all *existing* category mappings from the DB before clearing
+    existing_mappings = {
+        s.squad_id: s.assigned_category
+        for s in FleetSquad.objects.filter(wing__fleet=fleet_obj)
+        if s.assigned_category is not None
+    }
+
+    # 3. Clear old structure
+    FleetWing.objects.filter(fleet=fleet_obj).delete() # This cascades and deletes squads
+    
+    # 4. Create new wings
+    for wing in wings:
+        new_wing = FleetWing.objects.create(
+            fleet=fleet_obj,
+            wing_id=wing['id'],
+            name=wing['name']
+        )
+        
+        # 5. Create new squads
+        for squad in wing['squads']:
+            # Restore category if this squad_id existed before
+            restored_category = existing_mappings.get(squad['id'])
+            
+            FleetSquad.objects.create(
+                wing=new_wing,
+                squad_id=squad['id'],
+                name=squad['name'], # Use the name from ESI
+                assigned_category=restored_category # Restore the mapping
+            )
+# ---
+# --- END HELPER FUNCTION
+# ---
+
+
 # --- REMOVED: SDE CACHING HELPER FUNCTIONS ---
 # (get_or_cache_eve_group and get_or_cache_eve_type are now in fit_parser.py)
 # --- END REMOVAL ---
@@ -581,38 +629,7 @@ def api_fc_manage_waitlist(request):
     """
     
     # ---
-    # --- NEW: HELPER FUNCTION
-    # ---
-    def _update_fleet_structure(esi, fc_character, token, fleet_id, fleet_obj):
-        """
-        Pulls ESI fleet structure and saves it to the DB.
-        """
-        # 1. Get wings from ESI
-        wings = esi.client.Fleets.get_fleets_fleet_id_wings(
-            fleet_id=fleet_id,
-            token=token.access_token
-        ).results()
-        
-        # 2. Clear old structure
-        FleetWing.objects.filter(fleet=fleet_obj).delete()
-        
-        # 3. Create new wings
-        for wing in wings:
-            new_wing = FleetWing.objects.create(
-                fleet=fleet_obj,
-                wing_id=wing['id'],
-                name=wing['name']
-            )
-            
-            # 4. Create new squads
-            for squad in wing['squads']:
-                FleetSquad.objects.create(
-                    wing=new_wing,
-                    squad_id=squad['id'],
-                    name=squad['name']
-                )
-    # ---
-    # --- END HELPER FUNCTION
+    # --- HELPER FUNCTION WAS MOVED OUTSIDE THIS VIEW ---
     # ---
     
     
@@ -824,13 +841,19 @@ def api_get_fleet_structure(request):
         "available_categories": available_categories
     }
     
+    # --- THIS IS THE FIX: Removed category-based sorting ---
+    # --- Squads will now be sorted by their ID by default ---
+
     for wing in wings:
         wing_data = {
             "id": wing.wing_id,
             "name": wing.name,
             "squads": []
         }
-        for squad in wing.squads.all():
+        
+        # --- THIS IS THE FIX: Order by squad_id to match in-game order ---
+        for squad in wing.squads.order_by('squad_id'):
+        # --- END FIX ---
             wing_data["squads"].append({
                 "id": squad.squad_id,
                 "name": squad.name,
@@ -846,36 +869,112 @@ def api_get_fleet_structure(request):
 @user_passes_test(is_fleet_commander)
 def api_save_squad_mappings(request):
     """
-    Saves the category-to-squad mappings.
+    Saves the category-to-squad mappings AND new names.
+    This now pushes name changes to ESI.
     """
     open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
     if not open_waitlist:
         return JsonResponse({"status": "error", "message": "No waitlist is open."}, status=400)
         
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+        
     try:
+        # 1. Get FC token and ESI client
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # 2. Parse incoming data
         data = json.loads(request.body)
-        mappings = data.get('mappings', {})
+        wing_data = data.get('wings', [])
+        squad_data = data.get('squads', [])
         
-        fleet = open_waitlist.fleet
+        # 3. Get all wings/squads for this fleet from DB
+        all_db_wings = {w.wing_id: w for w in fleet.wings.all()}
+        all_db_squads = {s.squad_id: s for s in FleetSquad.objects.filter(wing__fleet=fleet)}
         
-        # 1. Get all squads for this fleet
-        all_squads = FleetSquad.objects.filter(wing__fleet=fleet)
+        # 4. Clear all existing category assignments
+        FleetSquad.objects.filter(wing__fleet=fleet).update(assigned_category=None)
         
-        # 2. Clear all existing assignments for this fleet
-        all_squads.update(assigned_category=None)
+        # 5. Process Wing Name Changes
+        for wing_info in wing_data:
+            wing_id = int(wing_info['id'])
+            new_name = wing_info['name']
+            
+            db_wing = all_db_wings.get(wing_id)
+            if db_wing and db_wing.name != new_name:
+                # Name changed, push to ESI
+                esi.client.Fleets.put_fleets_fleet_id_wings_wing_id(
+                    fleet_id=fleet.esi_fleet_id,
+                    wing_id=wing_id,
+                    naming={'name': new_name},
+                    token=token.access_token
+                ).results()
+                # Update DB
+                db_wing.name = new_name
+                db_wing.save()
+
+        # 6. Process Squad Name/Category Changes
+        for squad_info in squad_data:
+            squad_id = int(squad_info['id'])
+            new_name = squad_info['name']
+            new_category = squad_info['category']
+            
+            db_squad = all_db_squads.get(squad_id)
+            if db_squad:
+                # Check for name change
+                if db_squad.name != new_name:
+                    # Name changed, push to ESI
+                    esi.client.Fleets.put_fleets_fleet_id_squads_squad_id(
+                        fleet_id=fleet.esi_fleet_id,
+                        squad_id=squad_id,
+                        naming={'name': new_name},
+                        token=token.access_token
+                    ).results()
+                
+                # Update DB with new name and category
+                db_squad.name = new_name
+                db_squad.assigned_category = new_category
+                db_squad.save()
         
-        # 3. Apply new assignments
-        # mappings = { "LOGI": "12345", "DPS": "67890" }
-        for category, squad_id in mappings.items():
-            if squad_id:
-                try:
-                    squad = all_squads.get(squad_id=squad_id)
-                    squad.assigned_category = category
-                    squad.save()
-                except FleetSquad.DoesNotExist:
-                    pass # Ignore mapping to a squad that doesn't exist
+        # ---
+        # --- 7. NEW: Refresh structure from ESI and return it
+        # ---
+        _update_fleet_structure(
+            esi, fc_character, token, 
+            fleet.esi_fleet_id, fleet
+        )
         
-        return JsonResponse({"status": "success", "message": "Squad mappings saved."})
+        # Get the new structure to return
+        wings = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads')
+        available_categories = [
+            {"id": choice[0], "name": choice[1]}
+            for choice in ShipFit.FitCategory.choices
+            if choice[0] != 'NONE'
+        ]
+        structure = { "wings": [], "available_categories": available_categories }
+        
+        # --- THIS IS THE FIX: Removed category-based sorting ---
+
+        for wing in wings:
+            # --- THIS IS THE FIX: Order by squad_id to match in-game order ---
+            squads_list = wing.squads.order_by('squad_id')
+            # --- END FIX ---
+
+            wing_data = {
+                "id": wing.wing_id,
+                "name": wing.name,
+                "squads": [{
+                    "id": squad.squad_id,
+                    "name": squad.name,
+                    "assigned_category": squad.assigned_category
+                } for squad in squads_list]
+            }
+            structure["wings"].append(wing_data)
+
+        return JsonResponse({"status": "success", "structure": structure})
         
     except json.JSONDecodeError:
         return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
@@ -1013,7 +1112,7 @@ def api_fc_create_default_layout(request):
 
     try:
         # 1. Define our desired layout
-        # --- MODIFIED: New layout ---
+        # --- MODIFIED: Layout now matches the image ---
         DEFAULT_LAYOUT = [
             {
                 "name": "On Grid",
@@ -1022,10 +1121,12 @@ def api_fc_create_default_layout(request):
                     {"name": "DPS", "category": "DPS"},
                     {"name": "Sniper", "category": "SNIPER"},
                     {"name": "Other", "category": "OTHER"},
-                    {"name": "Empty", "category": None},
-                    {"name": "Empty", "category": None},
-                    {"name": "Empty", "category": None},
-                    {"name": "Empty", "category": None},
+                    {"name": "Mar DPS", "category": "MAR_DPS"},
+                    {"name": "Mar Sniper", "category": "MAR_SNIPER"},
+                    {"name": "Boxer 1", "category": None},
+                    {"name": "Boxer 2", "category": None},
+                    {"name": "Boxer 3", "category": None},
+                    {"name": "Boxer 4", "category": None},
                 ]
             },
             {
@@ -1034,9 +1135,9 @@ def api_fc_create_default_layout(request):
                     {"name": "Scout 1", "category": None},
                     {"name": "Scout 2", "category": None},
                     {"name": "Scout 3", "category": None},
-                    {"name": "Empty", "category": None},
-                    {"name": "Empty", "category": None},
-                    {"name": "Empty", "category": None},
+                    {"name": "Sponge 1", "category": None},
+                    {"name": "Sponge 2", "category": None},
+                    {"name": "Sponge 3", "category": None},
                 ]
             }
         ]
@@ -1256,6 +1357,253 @@ def api_fc_create_default_layout(request):
 
 
         return JsonResponse({"status": "success", "message": "Fleet layout successfully merged and mappings saved."})
+
+    except Exception as e:
+        return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
+# ---
+# --- END NEW API
+# ---
+
+
+# ---
+# --- NEW API FOR REFRESHING STRUCTURE
+# ---
+@login_required
+@require_POST
+@user_passes_test(is_fleet_commander)
+def api_fc_refresh_structure(request):
+    """
+    Pulls the current fleet structure from ESI,
+    updates the database, and returns the new structure.
+    """
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+
+    try:
+        # 1. Get FC token and ESI client
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # 2. Call the helper to update the DB
+        _update_fleet_structure(
+            esi, fc_character, token, 
+            fleet.esi_fleet_id, fleet
+        )
+        
+        # 3. Get the new structure to return
+        wings = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads')
+        available_categories = [
+            {"id": choice[0], "name": choice[1]}
+            for choice in ShipFit.FitCategory.choices
+            if choice[0] != 'NONE'
+        ]
+        structure = {
+            "wings": [],
+            "available_categories": available_categories
+        }
+        
+        for wing in wings:
+            wing_data = {
+                "id": wing.wing_id,
+                "name": wing.name,
+                "squads": []
+            }
+            # --- THIS IS THE FIX: Added .order_by('squad_id') ---
+            for squad in wing.squads.order_by('squad_id'):
+                wing_data["squads"].append({
+                    "id": squad.squad_id,
+                    "name": squad.name,
+                    "assigned_category": squad.assigned_category
+                })
+            structure["wings"].append(wing_data)
+
+        return JsonResponse({"status": "success", "structure": structure})
+
+    except Exception as e:
+        return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
+# ---
+# --- END NEW API
+# ---
+
+
+# ---
+# --- NEW API FOR ADDING/DELETING SQUADS
+# ---
+@login_required
+@require_POST
+@user_passes_test(is_fleet_commander)
+def api_fc_add_squad(request):
+    """
+    Adds a new squad to a wing in-game.
+    """
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+
+    wing_id = request.POST.get('wing_id')
+    if not wing_id:
+        return JsonResponse({"status": "error", "message": "Missing wing_id."}, status=400)
+        
+    try:
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # 1. Make ESI call to create the squad
+        new_squad = esi.client.Fleets.post_fleets_fleet_id_wings_wing_id_squads(
+            fleet_id=fleet.esi_fleet_id,
+            wing_id=wing_id,
+            token=token.access_token
+        ).results()
+        
+        # 2. Get the new squad ID
+        squad_id = new_squad['squad_id']
+        
+        # 3. Rename it to "New Squad"
+        esi.client.Fleets.put_fleets_fleet_id_squads_squad_id(
+            fleet_id=fleet.esi_fleet_id,
+            squad_id=squad_id,
+            naming={'name': "New Squad"},
+            token=token.access_token
+        ).results()
+
+        # 4. We don't need to update the DB, as the calling
+        #    function will trigger a full refresh.
+        
+        return JsonResponse({"status": "success", "message": "New squad added."})
+
+    except Exception as e:
+        return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
+
+
+@login_required
+@require_POST
+@user_passes_test(is_fleet_commander)
+def api_fc_delete_squad(request):
+    """
+    Deletes a squad from a wing in-game.
+    """
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+
+    squad_id = request.POST.get('squad_id')
+    if not squad_id:
+        return JsonResponse({"status": "error", "message": "Missing squad_id."}, status=400)
+        
+    try:
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # Make ESI call to delete the squad
+        esi.client.Fleets.delete_fleets_fleet_id_squads_squad_id(
+            fleet_id=fleet.esi_fleet_id,
+            squad_id=squad_id,
+            token=token.access_token
+        ).results()
+        
+        return JsonResponse({"status": "success", "message": "Squad deleted."})
+
+    except Exception as e:
+        return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
+# ---
+# --- END NEW API
+# ---
+
+
+# ---
+# --- NEW API FOR ADDING/DELETING WINGS
+# ---
+@login_required
+@require_POST
+@user_passes_test(is_fleet_commander)
+def api_fc_add_wing(request):
+    """
+    Adds a new wing to the fleet in-game.
+    """
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+        
+    try:
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # 1. Make ESI call to create the wing
+        new_wing = esi.client.Fleets.post_fleets_fleet_id_wings(
+            fleet_id=fleet.esi_fleet_id,
+            token=token.access_token
+        ).results()
+        
+        # 2. Get the new wing ID
+        wing_id = new_wing['wing_id']
+        
+        # 3. Rename it to "New Wing"
+        esi.client.Fleets.put_fleets_fleet_id_wings_wing_id(
+            fleet_id=fleet.esi_fleet_id,
+            wing_id=wing_id,
+            naming={'name': "New Wing"},
+            token=token.access_token
+        ).results()
+        
+        return JsonResponse({"status": "success", "message": "New wing added."})
+
+    except Exception as e:
+        return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
+
+
+@login_required
+@require_POST
+@user_passes_test(is_fleet_commander)
+def api_fc_delete_wing(request):
+    """
+    Deletes a wing from the fleet in-game.
+    """
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+
+    wing_id = request.POST.get('wing_id')
+    if not wing_id:
+        return JsonResponse({"status": "error", "message": "Missing wing_id."}, status=400)
+        
+    try:
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # Make ESI call to delete the wing
+        esi.client.Fleets.delete_fleets_fleet_id_wings_wing_id(
+            fleet_id=fleet.esi_fleet_id,
+            wing_id=wing_id,
+            token=token.access_token
+        ).results()
+        
+        return JsonResponse({"status": "success", "message": "Wing deleted."})
 
     except Exception as e:
         return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)

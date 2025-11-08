@@ -19,6 +19,48 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
 
+    /* --- NEW: ESI Loading Overlay Styles (from pilot_detail.html) --- */
+    #esi-loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        display: none; /* Hidden by default */
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000; /* On top of everything */
+    }
+
+        #esi-loading-overlay.show {
+            display: flex;
+        }
+
+    .spinner {
+        width: 60px;
+        height: 60px;
+        border: 6px solid #555;
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    #esi-loading-overlay p {
+        color: #fff;
+        font-size: 1.2em;
+        margin-top: 20px;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    /* --- END NEW Overlay --- */
+
+
     h1 {
         border-bottom: 1px solid #444;
         padding-bottom: 10px;
@@ -203,12 +245,21 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 10px; /* Reduced margin */
+        /* --- NEW: Wrap buttons --- */
+        flex-wrap: wrap;
+        gap: 10px;
     }
 
         .fleet-structure-header .btn {
             padding: 6px 10px; /* Smaller button */
             font-size: 0.9em;
         }
+
+    /* --- NEW: Container for layout buttons --- */
+    .layout-buttons {
+        display: flex;
+        gap: 10px;
+    }
 
     .fleet-wing {
         background: #2a2a2a;
@@ -217,7 +268,12 @@
         margin-bottom: 10px; /* Reduced margin */
     }
 
+    /* --- NEW STYLES FOR WING/SQUAD BUTTONS --- */
     .wing-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
         background: #3a3a3a;
         padding: 8px 12px; /* Reduced padding */
         font-size: 1em; /* Smaller font */
@@ -226,10 +282,50 @@
         border-radius: 5px 5px 0 0;
     }
 
+    .wing-header-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-wing-action {
+        background: #555;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 0.8em;
+        padding: 4px 8px;
+        transition: background-color 0.2s;
+    }
+
+        .btn-wing-action:hover {
+            background: #666;
+        }
+
+    /* --- THIS IS THE FIX: The .btn-wing-delete style is removed --- */
+
+    .wing-name-input {
+        /* This is the new text input for the wing name */
+        flex-grow: 1; /* Take up available space */
+        background: #222;
+        border: 1px solid #555;
+        border-radius: 5px;
+        padding: 5px 8px;
+        color: #fff;
+        font-family: inherit;
+        font-size: 1em;
+        font-weight: 600;
+        min-width: 150px;
+    }
+    /* --- END WING/SQUAD BUTTONS --- */
+
+
     .squad-list {
         padding: 10px 12px; /* Reduced padding */
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr; /* --- MODIFIED: Single column grid --- */
         gap: 8px 15px; /* Reduced gap */
     }
 
@@ -239,22 +335,50 @@
         gap: 8px; /* Reduced gap */
     }
 
-        .squad-item label {
-            flex-shrink: 0;
-            font-weight: 500;
-            color: #ccc;
-            width: 100px; /* Shorter label width */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: 0.9em; /* Smaller font */
+    /* --- NEW: Squad name text input --- */
+    .squad-name-input {
+        flex-basis: 150px; /* Start at 150px */
+        flex-grow: 1; /* Grow to fill */
+        flex-shrink: 1; /* Allow shrinking */
+        background: #222;
+        border: 1px solid #555;
+        border-radius: 5px;
+        padding: 5px 8px; /* Smaller select box */
+        color: #fff;
+        font-family: inherit;
+        font-size: 0.9em;
+        min-width: 100px;
+    }
+
+    .squad-item select {
+        width: auto; /* Let it size to content */
+        flex-basis: 150px; /* Start at 150px */
+        flex-grow: 1;
+        flex-shrink: 1;
+        padding: 5px 8px; /* Smaller select box */
+        font-size: 0.9em;
+        min-width: 100px;
+    }
+
+    /* --- NEW: Squad delete button --- */
+    .btn-delete-squad {
+        background: #993333;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 1.1em;
+        line-height: 1;
+        padding: 3px 6px;
+        flex-shrink: 0; /* Don't shrink */
+        transition: background-color 0.2s;
+    }
+
+        .btn-delete-squad:hover {
+            background: #b33a3a;
         }
 
-        .squad-item select {
-            width: 100%; /* Fill remaining space */
-            padding: 5px 8px; /* Smaller select box */
-            font-size: 0.9em;
-        }
 
     #btn-save-mappings {
         margin-top: 10px;
@@ -270,6 +394,14 @@
         }
     }
 
+    @media (min-width: 600px) {
+        /* --- MODIFIED: Go to 2 columns on wider screens --- */
+        .squad-list {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+
     @media (max-width: 600px) {
         /* Stack the status grid */
         .status-grid {
@@ -280,18 +412,15 @@
             grid-template-columns: 1fr;
         }
 
-        /* Stack squad list */
-        .squad-list {
-            grid-template-columns: 1fr;
-        }
-
         .squad-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 5px;
+            /* --- MODIFIED: Allow wrapping --- */
+            flex-wrap: wrap;
         }
 
-            .squad-item label {
+            .squad-name-input,
+            .squad-item select {
+                /* --- MODIFIED: Full width on small screens --- */
+                flex-basis: 100%;
                 width: 100%;
             }
     }
@@ -305,6 +434,13 @@
 
 
 {% block content %}
+<!-- --- NEW: ESI Loading Overlay --- -->
+<div id="esi-loading-overlay">
+    <div class="spinner"></div>
+    <p id="esi-loading-text">Communicating with ESI...</p>
+</div>
+<!-- --- END NEW --- -->
+
 <div class="container">
     <h1>FC Waitlist Management</h1>
 
@@ -383,7 +519,12 @@
     <div class="admin-section" id="section-fleet-structure" {% if not open_waitlist.fleet.esi_fleet_id %}style="display: none;" {% endif %}>
         <div class="fleet-structure-header">
             <h2>Fleet Structure & Mappings</h2>
-            <button type="button" class="btn btn-primary" id="btn-create-layout">Create Default Layout</button>
+            <!-- --- NEW: Button container --- -->
+            <div class="layout-buttons">
+                <button type="button" class="btn btn-primary" id="btn-create-layout">Create Default Layout</button>
+                <!-- --- NEW: Add Wing Button --- -->
+                <button type="button" class="btn btn-primary" id="btn-add-wing">Add New Wing</button>
+            </div>
         </div>
 
         <div class="form-group">
@@ -455,6 +596,23 @@
         const messageContainer = document.getElementById('message-container');
         const apiUrl = "{% url 'waitlist:api_fc_manage_waitlist' %}";
 
+        // --- NEW: ESI Overlay Elements ---
+        const esiOverlay = document.getElementById('esi-loading-overlay');
+        const esiOverlayText = document.getElementById('esi-loading-text');
+
+        // --- NEW: ESI Overlay Helper Functions ---
+        function showEsiOverlay(message) {
+            if (!esiOverlay || !esiOverlayText) return;
+            esiOverlayText.textContent = message;
+            esiOverlay.classList.add('show');
+        }
+
+        function hideEsiOverlay() {
+            if (!esiOverlay) return;
+            esiOverlay.classList.remove('show');
+        }
+
+
         // --- Helper to show messages ---
         function showMessage(type, text) {
             messageContainer.innerHTML = `<div class="message message-${type}">${text}</div>`;
@@ -475,6 +633,7 @@
                 e.preventDefault();
                 const button = document.getElementById('open-waitlist-btn');
                 button.disabled = true;
+                // --- MODIFIED: No ESI call here, so no overlay ---
                 showMessage('loading', 'Opening waitlist...');
 
                 const formData = new FormData(openForm);
@@ -507,13 +666,12 @@
             closeForm.addEventListener('submit', (e) => {
                 e.preventDefault();
 
-                // --- MODIFIED: Use new custom confirm ---
                 showCustomConfirm(
                     'Are you sure you want to close this waitlist? All pending fits will be denied.',
                     () => {
-                        // This code runs if they click "Confirm"
                         const button = document.getElementById('close-waitlist-btn');
                         button.disabled = true;
+                        // --- MODIFIED: No ESI call, so no overlay ---
                         showMessage('loading', 'Closing waitlist...');
 
                         const formData = new FormData(closeForm);
@@ -539,21 +697,19 @@
                             });
                     }
                 );
-                // --- END MODIFICATION ---
             });
         }
 
         // --- 3. Handle "Link Fleet" (formerly TAKEOVER) ---
-        // --- MODIFIED: Form ID ---
         const linkFleetForm = document.getElementById('link-fleet-form');
         if (linkFleetForm) {
             linkFleetForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                // --- MODIFIED: Button ID ---
                 const button = document.getElementById('link-fleet-btn');
                 button.disabled = true;
-                // --- MODIFIED: Text ---
-                showMessage('loading', 'Linking fleet... Verifying with ESI...');
+                // --- MODIFIED: Use ESI Overlay ---
+                clearMessage();
+                showEsiOverlay('Linking to ESI Fleet...');
 
                 const formData = new FormData(linkFleetForm);
 
@@ -566,12 +722,10 @@
                     .then(data => {
                         if (data.status === 'success') {
                             showMessage('success', data.message);
-                            // --- MODIFIED: Update display, don't reload ---
                             document.getElementById('esi-fleet-id-display').value = data.esi_fleet_id;
                             document.getElementById('section-fleet-structure').style.display = 'block';
-                            loadFleetStructure(); // Load structure
-                            button.disabled = false; // Re-enable
-                            // --- END MODIFICATION ---
+                            loadFleetStructure();
+                            button.disabled = false;
                         } else {
                             showMessage('error', `Error: ${data.message}`);
                             button.disabled = false;
@@ -580,6 +734,10 @@
                     .catch(err => {
                         showMessage('error', `Network Error: ${err}`);
                         button.disabled = false;
+                    })
+                    // --- NEW: Hide overlay on finish ---
+                    .finally(() => {
+                        hideEsiOverlay();
                     });
             });
         }
@@ -598,6 +756,10 @@
         function loadFleetStructure() {
             if (!structureBody) return;
             structureBody.innerHTML = '<p>Loading fleet structure...</p>';
+
+            // --- MODIFIED: This function DOES NOT show the ESI overlay, ---
+            // --- as it's called by other functions that already show it. ---
+            // --- The main "Refresh" button will call refreshStructureFromESI() ---
 
             fetch("{% url 'waitlist:api_get_fleet_structure' %}")
                 .then(response => response.json())
@@ -625,16 +787,26 @@
 
             // Build the wings and squads
             structure.wings.forEach(wing => {
-                html += `<div class="fleet-wing">`;
-                html += `<div class="wing-header">${wing.name} (ID: ${wing.id})</div>`;
+                html += `<div class="fleet-wing" data-wing-id="${wing.id}">`;
+                html += `<div class="wing-header">`;
+
+                html += `<input type="text" class="wing-name-input" value="${wing.name}" data-wing-id="${wing.id}">`;
+
+                html += `<div class="wing-header-controls">`;
+                html += `<button class="btn-wing-action btn-add-squad" data-wing-id="${wing.id}" title="Add New Squad">+ Add Squad</button>`;
+                /* --- THIS IS THE FIX: Changed class to btn-delete-squad --- */
+                html += `<button class="btn-delete-squad" data-wing-id="${wing.id}" data-wing-name="${wing.name}" title="Delete Wing">&times;</button>`;
+                html += `</div></div>`;
+
                 html += `<div class="squad-list">`;
 
                 wing.squads.forEach(squad => {
-                    html += `<div class="squad-item">`;
-                    html += `<label for="squad-${squad.id}" title="${squad.name} (ID: ${squad.id})">${squad.name}</label>`;
-                    html += `<select id="squad-${squad.id}" data-squad-id="${squad.id}" class="squad-category-select">`;
+                    html += `<div class="squad-item" data-squad-id="${squad.id}">`;
+                    html += `<input type="text" class="squad-name-input" value="${squad.name}" title="${squad.name} (ID: ${squad.id})">`;
+                    html += `<select data-squad-id="${squad.id}" class="squad-category-select">`;
                     html += categoryOptions; // Add all options
                     html += `</select>`;
+                    html += `<button class="btn-delete-squad" data-squad-id="${squad.id}" data-squad-name="${squad.name}" title="Delete Squad">&times;</button>`;
                     html += `</div>`;
                 });
 
@@ -647,42 +819,54 @@
             structure.wings.forEach(wing => {
                 wing.squads.forEach(squad => {
                     if (squad.assigned_category) {
-                        const select = document.getElementById(`squad-${squad.id}`);
+                        const select = document.querySelector(`.squad-item[data-squad-id="${squad.id}"] .squad-category-select`);
                         if (select) {
                             select.value = squad.assigned_category;
                         }
                     }
                 });
             });
+
+            addStructureButtonListeners();
         }
 
         // --- 5. Handle SAVE Mappings ---
         if (saveMappingsBtn) {
             saveMappingsBtn.addEventListener('click', () => {
-                const selects = document.querySelectorAll('.squad-category-select');
-                const mappings = {}; // { "LOGI": 12345, "DPS": null }
-                const assignedCategories = new Set();
 
-                let hasDuplicate = false;
+                const wings = document.querySelectorAll('.fleet-wing');
+                let wingData = [];
+                let squadData = [];
 
-                selects.forEach(select => {
-                    const category = select.value;
-                    const squadId = select.dataset.squadId;
-
-                    if (category) { // If a category is chosen
-                        if (assignedCategories.has(category)) {
-                            hasDuplicate = true;
-                            showMessage('error', `Error: Category '${category}' is assigned to multiple squads.`);
-                        }
-                        assignedCategories.add(category);
-                        mappings[category] = squadId;
+                wings.forEach(wing => {
+                    const wingId = wing.dataset.wingId;
+                    const wingNameInput = wing.querySelector('.wing-name-input');
+                    if (wingNameInput) {
+                        wingData.push({
+                            id: wingId,
+                            name: wingNameInput.value
+                        });
                     }
+
+                    wing.querySelectorAll('.squad-item').forEach(squad => {
+                        const squadId = squad.dataset.squadId;
+                        const squadNameInput = squad.querySelector('.squad-name-input');
+                        const squadCategorySelect = squad.querySelector('.squad-category-select');
+
+                        if (squadNameInput && squadCategorySelect) {
+                            squadData.push({
+                                id: squadId,
+                                name: squadNameInput.value,
+                                category: squadCategorySelect.value || null
+                            });
+                        }
+                    });
                 });
 
-                if (hasDuplicate) return; // Stop if duplicates found
-
                 saveMappingsBtn.disabled = true;
-                showMessage('loading', 'Saving mappings...');
+                // --- MODIFIED: Use ESI Overlay ---
+                clearMessage();
+                showEsiOverlay('Saving Mappings & Syncing with ESI...');
 
                 fetch("{% url 'waitlist:api_save_squad_mappings' %}", {
                     method: 'POST',
@@ -691,12 +875,15 @@
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: JSON.stringify({ mappings: mappings })
+                    body: JSON.stringify({ wings: wingData, squads: squadData })
                 })
                     .then(response => response.json())
                     .then(data => {
                         if (data.status === 'success') {
-                            showMessage('success', data.message);
+                            // --- MODIFIED: Success message, then render ---
+                            showMessage('success', 'Mappings saved and fleet updated.');
+                            // The backend now returns the fresh structure
+                            renderFleetStructure(data.structure);
                         } else {
                             showMessage('error', `Error: ${data.message}`);
                         }
@@ -706,6 +893,8 @@
                     })
                     .finally(() => {
                         saveMappingsBtn.disabled = false;
+                        // --- NEW: Hide overlay ---
+                        hideEsiOverlay();
                     });
             });
         }
@@ -719,7 +908,9 @@
                     () => {
                         // Run on confirm
                         createLayoutBtn.disabled = true;
-                        showMessage('loading', 'Applying default layout to in-game fleet...');
+                        // --- MODIFIED: Use ESI Overlay ---
+                        clearMessage();
+                        showEsiOverlay('Pushing Default Layout to ESI...');
 
                         fetch("{% url 'waitlist:api_fc_create_default_layout' %}", {
                             method: 'POST',
@@ -732,8 +923,7 @@
                             .then(data => {
                                 if (data.status === 'success') {
                                     showMessage('success', data.message);
-                                    // Refresh the structure to show new names/mappings
-                                    loadFleetStructure();
+                                    refreshStructureFromESI(false); // Refresh without overlay
                                 } else {
                                     showMessage('error', `Error: ${data.message}`);
                                 }
@@ -743,6 +933,8 @@
                             })
                             .finally(() => {
                                 createLayoutBtn.disabled = false;
+                                // --- NEW: Hide overlay ---
+                                hideEsiOverlay();
                             });
                     }
                 );
@@ -750,16 +942,220 @@
         }
 
         // --- 7. Handle REFRESH Structure ---
+        // --- MODIFIED: Added 'showOverlay' flag ---
+        function refreshStructureFromESI(showOverlay = true) {
+            clearMessage();
+            if (showOverlay) {
+                showEsiOverlay('Refreshing Fleet Structure from ESI...');
+            }
+            if (refreshStructureBtn) refreshStructureBtn.disabled = true;
+
+            fetch("{% url 'waitlist:api_fc_refresh_structure' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (showOverlay) {
+                            showMessage('success', 'Fleet structure refreshed.');
+                        }
+                        renderFleetStructure(data.structure);
+                    } else {
+                        showMessage('error', `Error: ${data.message}`);
+                    }
+                })
+                .catch(err => {
+                    showMessage('error', `Network Error: ${err.message}`);
+                })
+                .finally(() => {
+                    if (refreshStructureBtn) refreshStructureBtn.disabled = false;
+                    if (showOverlay) {
+                        hideEsiOverlay();
+                    }
+                });
+        }
+
         if (refreshStructureBtn) {
             refreshStructureBtn.addEventListener('click', () => {
-                clearMessage();
-                loadFleetStructure();
+                refreshStructureFromESI(true); // Call with overlay
             });
         }
 
+        // --- 8. Event listeners for Add/Delete Squad/Wing ---
+        function addStructureButtonListeners() {
+            // Add Squad
+            document.querySelectorAll('.btn-add-squad').forEach(button => {
+                button.addEventListener('click', () => {
+                    const wingId = button.dataset.wingId;
+
+                    button.disabled = true;
+                    // --- MODIFIED: Use ESI Overlay ---
+                    clearMessage();
+                    showEsiOverlay('Adding New Squad via ESI...');
+
+                    const formData = new FormData();
+                    formData.append('wing_id', wingId);
+
+                    fetch("{% url 'waitlist:api_fc_add_squad' %}", {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                showMessage('success', data.message);
+                                refreshStructureFromESI(false); // Refresh without overlay
+                            } else {
+                                showMessage('error', `Error: ${data.message}`);
+                                button.disabled = false;
+                            }
+                        })
+                        .catch(err => {
+                            showMessage('error', `Network Error: ${err}`);
+                            button.disabled = false;
+                        })
+                        // --- NEW: Hide overlay ---
+                        .finally(() => {
+                            hideEsiOverlay();
+                        });
+                });
+            });
+
+            // Delete Squad
+            document.querySelectorAll('.btn-delete-squad').forEach(button => {
+                button.addEventListener('click', () => {
+                    const squadId = button.dataset.squadId;
+
+                    button.disabled = true;
+                    // --- MODIFIED: Use ESI Overlay ---
+                    clearMessage();
+                    showEsiOverlay('Deleting Squad via ESI...');
+
+                    const formData = new FormData();
+                    formData.append('squad_id', squadId);
+
+                    fetch("{% url 'waitlist:api_fc_delete_squad' %}", {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                showMessage('success', data.message);
+                                refreshStructureFromESI(false); // Refresh without overlay
+                            } else {
+                                showMessage('error', `Error: ${data.message}`);
+                                button.disabled = false;
+                            }
+                        })
+                        .catch(err => {
+                            showMessage('error', `Network Error: ${err}`);
+                            button.disabled = false;
+                        })
+                        // --- NEW: Hide overlay ---
+                        .finally(() => {
+                            hideEsiOverlay();
+                        });
+                });
+            });
+
+            // Delete Wing
+            document.querySelectorAll('.btn-delete-wing').forEach(button => {
+                button.addEventListener('click', () => {
+                    const wingId = button.dataset.wingId;
+
+                    button.disabled = true;
+                    // --- MODIFIED: Use ESI Overlay ---
+                    clearMessage();
+                    showEsiOverlay('Deleting Wing via ESI...');
+
+                    const formData = new FormData();
+                    formData.append('wing_id', wingId);
+
+                    fetch("{% url 'waitlist:api_fc_delete_wing' %}", {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                showMessage('success', data.message);
+                                refreshStructureFromESI(false); // Refresh without overlay
+                            } else {
+                                showMessage('error', `Error: ${data.message}`);
+                                button.disabled = false;
+                            }
+                        })
+                        .catch(err => {
+                            showMessage('error', `Network Error: ${err}`);
+                            button.disabled = false;
+                        })
+                        // --- NEW: Hide overlay ---
+                        .finally(() => {
+                            hideEsiOverlay();
+                        });
+                });
+            });
+        }
+
+        // --- NEW: Add Wing Button Listener ---
+        const addWingBtn = document.getElementById('btn-add-wing');
+        if (addWingBtn) {
+            addWingBtn.addEventListener('click', () => {
+                addWingBtn.disabled = true;
+                // --- MODIFIED: Use ESI Overlay ---
+                clearMessage();
+                showEsiOverlay('Adding New Wing via ESI...');
+
+                fetch("{% url 'waitlist:api_fc_add_wing' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showMessage('success', data.message);
+                            refreshStructureFromESI(false); // Refresh without overlay
+                        } else {
+                            showMessage('error', `Error: ${data.message}`);
+                        }
+                    })
+                    .catch(err => {
+                        showMessage('error', `Network Error: ${err}`);
+                    })
+                    .finally(() => {
+                        addWingBtn.disabled = false;
+                        // --- NEW: Hide overlay ---
+                        hideEsiOverlay();
+                    });
+            });
+        }
+
+
         // --- On Page Load, if structure section is visible, load it ---
         if (structureSection && structureSection.style.display !== 'none') {
-            loadFleetStructure();
+            // --- MODIFIED: Call the ESI refresh on first load ---
+            // --- This ensures it's in sync from the start ---
+            refreshStructureFromESI(true);
         }
         // ---
         // --- END Fleet Structure Logic
