@@ -1,7 +1,10 @@
 from django.contrib import admin
 # Import the models that *actually exist* from waitlist.models
-# --- MODIFIED: Import new model ---
-from waitlist.models import EveCharacter, ShipFit, Fleet, FleetWaitlist, DoctrineFit, FitSubstitutionGroup
+# --- MODIFIED: Import new models ---
+from waitlist.models import (
+    EveCharacter, ShipFit, Fleet, FleetWaitlist, DoctrineFit,
+    FitSubstitutionGroup, FleetWing, FleetSquad
+)
 # --- END MODIFIED ---
 # --- NEW IMPORTS for DoctrineFit Admin ---
 from django import forms
@@ -215,3 +218,28 @@ class FitSubstitutionGroupAdmin(admin.ModelAdmin):
     filter_horizontal = ('substitutes',)
 
 # --- END NEW ---
+
+
+# ---
+# --- NEW: Register Fleet Structure Models ---
+# ---
+class FleetSquadInline(admin.TabularInline):
+    model = FleetSquad
+    extra = 0
+    fields = ('name', 'squad_id', 'assigned_category')
+    readonly_fields = ('name', 'squad_id')
+
+@admin.register(FleetWing)
+class FleetWingAdmin(admin.ModelAdmin):
+    list_display = ('name', 'wing_id', 'fleet')
+    list_filter = ('fleet',)
+    inlines = [FleetSquadInline]
+
+@admin.register(FleetSquad)
+class FleetSquadAdmin(admin.ModelAdmin):
+    list_display = ('name', 'squad_id', 'wing', 'assigned_category')
+    list_filter = ('wing__fleet', 'assigned_category')
+    list_editable = ('assigned_category',)
+# ---
+# --- END NEW ---
+# ---

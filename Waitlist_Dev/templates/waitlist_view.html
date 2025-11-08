@@ -63,6 +63,11 @@
         border-top: 3px solid #28a745;
     }
 
+    /* --- NEW: In Fleet Status --- */
+    .status-IN_FLEET {
+        border-top: 3px solid #3b5998;
+    }
+
     .fit-card-list {
         list-style: none;
         padding: 5px; /* MODIFIED: Was 8px */
@@ -98,7 +103,13 @@
         border-radius: 5px;
         margin-bottom: 5px; /* MODIFIED: Was 8px */
         box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* MODIFIED: Re-added shadow */
+        /* --- NEW: Transition for invite --- */
+        transition: opacity 0.5s ease;
     }
+
+        .fit-card.status-IN_FLEET {
+            opacity: 0.4; /* Fade out invited pilots */
+        }
 
     .card-header {
         display: flex;
@@ -134,6 +145,11 @@
         padding: 2px 6px;
         background: rgba(0,0,0,0.2);
         border-radius: 4px;
+    }
+
+    /* --- NEW: In Fleet Timer Style --- */
+    .fit-card.status-IN_FLEET .wait-timer {
+        color: #63d471; /* Green */
     }
 
     .card-body {
@@ -287,6 +303,17 @@
             background-color: #e64a58;
         }
 
+    /* --- NEW: Invite Button --- */
+    .btn-invite {
+        background-color: #3b5998;
+        font-size: 0.9em; /* Make text fit */
+        padding: 6px 8px; /* Adjust padding */
+    }
+
+        .btn-invite:hover {
+            background-color: #4e71bb;
+        }
+
 
     .waitlist-closed-msg {
         color: #aaa;
@@ -320,12 +347,18 @@ It will be filled by the partial template on page load.
     // --- Check if user is an FC ---
     const isFC = {{ is_fc|yesno:"true,false" }};
 
-    // --- 1. FC ACTION HANDLER ---
+    // --- 1. FC ACTION HANDLER (Approve/Deny) ---
 
     function handleFCAction(event) {
         // Find the button that was clicked
         const button = event.target.closest('.fc-btn');
         if (!button) return; // Click wasn't on a button
+
+        // --- MODIFICATION: Ignore invite buttons ---
+        if (button.classList.contains('btn-invite')) {
+            return;
+        }
+        // --- END MODIFICATION ---
 
         const fitId = button.dataset.fitId;
         const action = button.dataset.action;
@@ -377,6 +410,62 @@ It will be filled by the partial template on page load.
             alert(`Network Error: ${error.message}`);
         });
     }
+
+    // ---
+    // --- NEW: FC INVITE HANDLER
+    // ---
+    function handleFCInvite(event) {
+        const button = event.target.closest('.btn-invite');
+        if (!button) return; // Not an invite button
+
+        const fitId = button.dataset.fitId;
+        const card = document.getElementById(`fit-card-${fitId}`);
+
+        button.disabled = true;
+        button.textContent = '...'; // Show loading
+
+        const formData = new FormData();
+        formData.append('fit_id', fitId);
+
+        fetch("{% url 'waitlist:api_fc_invite_pilot' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Success! Let the poller handle the removal.
+                // We'll just fade out the card.
+                if (card) {
+                    card.classList.add('status-IN_FLEET');
+                }
+            } else {
+                // Show a pop-up on error
+                // We can use our new custom confirm modal as an alert
+                showCustomConfirm(
+                    `<strong>Invite Failed</strong><br>${data.message}`,
+                    () => {} // Pass an empty function
+                );
+                button.disabled = false;
+                button.textContent = 'Invite';
+            }
+        })
+        .catch(err => {
+            showCustomConfirm(
+                `<strong>Network Error</strong><br>${err.message}`,
+                () => {}
+            );
+            button.disabled = false;
+            button.textContent = 'Invite';
+        });
+    }
+    // ---
+    // --- END NEW INVITE HANDLER
+    // ---
 
     // --- 2. TIMER AND LIVE POLLING ---
 
@@ -606,40 +695,10 @@ It will be filled by the partial template on page load.
         }
     }
 
-    // --- NEW: Custom Confirm Modal Function ---
-    // This function will store the callback to run on "OK"
-    let _onConfirmCallback = null;
-    const confirmModal = document.getElementById('custom-confirm-modal');
-    const confirmMsg = document.getElementById('custom-confirm-message');
-    const confirmOkBtn = document.getElementById('custom-confirm-ok-btn');
-    const confirmCancelBtn = document.getElementById('custom-confirm-cancel-btn');
-
-    function showCustomConfirm(message, onConfirmCallback) {
-        if (!confirmModal) return;
-
-        confirmMsg.innerHTML = message; // Use innerHTML to allow simple formatting
-        _onConfirmCallback = onConfirmCallback;
-
-        // Show the modal
-        confirmModal.classList.add('show');
-    }
-
-    // Add listeners for the confirm modal buttons
-    if (confirmModal) {
-        confirmOkBtn.addEventListener('click', () => {
-            if (typeof _onConfirmCallback === 'function') {
-                _onConfirmCallback();
-            }
-            _onConfirmCallback = null; // Clear callback
-            confirmModal.classList.remove('show'); // Hide modal
-        });
-
-        confirmCancelBtn.addEventListener('click', () => {
-            _onConfirmCallback = null; // Clear callback
-            confirmModal.classList.remove('show'); // Hide modal
-        });
-    }
-    // --- END NEW: Custom Confirm Modal Function ---
+    // ---
+    // --- CUSTOM CONFIRM MODAL (REMOVED)
+    // --- The function 'showCustomConfirm' is now in base.html
+    // ---
 
 
     // --- MODIFIED: Replaced showSubstitutionDropdown with handleSubstitutionAction ---
@@ -730,6 +789,9 @@ It will be filled by the partial template on page load.
             // Re-enable button if user cancels (the 'cancel' button on the
             // confirm modal will just hide the modal, so we must re-enable)
             // We'll add a one-time listener to the cancel button for this.
+            const confirmCancelBtn = document.getElementById('custom-confirm-cancel-btn');
+            const confirmOkBtn = document.getElementById('custom-confirm-ok-btn');
+
             const tempCancelListener = () => {
                 button.disabled = false;
                 confirmCancelBtn.removeEventListener('click', tempCancelListener);
@@ -805,7 +867,13 @@ It will be filled by the partial template on page load.
             // Check for FC action click
             const fcButton = event.target.closest('.fc-btn');
             if (isFC && fcButton) {
-                handleFCAction(event);
+                // --- MODIFICATION: Route to correct handler ---
+                if (fcButton.classList.contains('btn-invite')) {
+                    handleFCInvite(event);
+                } else {
+                    handleFCAction(event);
+                }
+                // --- END MODIFICATION ---
                 return; // Stop processing
             }
 

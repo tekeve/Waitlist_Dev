@@ -270,3 +270,50 @@ class FitSubstitutionGroup(models.Model):
     def __str__(self):
         return self.name
 # --- END NEW MODEL ---
+
+
+# ---
+# --- NEW FLEET STRUCTURE MODELS ---
+# ---
+class FleetWing(models.Model):
+    """
+    Represents a wing in an EVE fleet.
+    Created/updated when an FC opens the waitlist.
+    """
+    fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name="wings")
+    wing_id = models.BigIntegerField()
+    name = models.CharField(max_length=100)
+    
+    class Meta:
+        unique_together = ('fleet', 'wing_id')
+
+    def __str__(self):
+        return f"{self.fleet.description} - Wing {self.wing_id}: {self.name}"
+
+class FleetSquad(models.Model):
+    """
+    Represents a squad in an EVE fleet wing.
+    This model maps a waitlist category to an in-game squad.
+    """
+    wing = models.ForeignKey(FleetWing, on_delete=models.CASCADE, related_name="squads")
+    squad_id = models.BigIntegerField()
+    name = models.CharField(max_length=100)
+    
+    # This is the key field for mapping
+    assigned_category = models.CharField(
+        max_length=20,
+        choices=ShipFit.FitCategory.choices,
+        null=True, # We can't use 'NONE' as default, as 'unique' would fail
+        blank=True,
+        unique=True, # Ensures one squad per category
+        db_index=True
+    )
+
+    class Meta:
+        unique_together = ('wing', 'squad_id')
+
+    def __str__(self):
+        return f"Squad {self.squad_id}: {self.name} (Category: {self.get_assigned_category_display()})"
+# ---
+# --- END NEW FLEET STRUCTURE MODELS ---
+# ---

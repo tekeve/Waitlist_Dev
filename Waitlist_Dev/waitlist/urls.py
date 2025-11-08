@@ -21,4 +21,16 @@ urlpatterns = [
     
     # --- NEW API FOR ADDING SUBSTITUTIONS ---
     path('api/add_substitution/', views.api_add_substitution, name='api_add_substitution'),
+    
+    # ---
+    # --- NEW API URLS FOR FLEET MANAGEMENT ---
+    # ---
+    path('api/get_fleet_structure/', views.api_get_fleet_structure, name='api_get_fleet_structure'),
+    path('api/save_squad_mappings/', views.api_save_squad_mappings, name='api_save_squad_mappings'),
+    path('api/fc_invite_pilot/', views.api_fc_invite_pilot, name='api_fc_invite_pilot'),
+    # --- NEW: API for creating the layout ---
+    path('api/fc_create_default_layout/', views.api_fc_create_default_layout, name='api_fc_create_default_layout'),
+    # ---
+    # --- END NEW API URLS ---
+    # ---
 ]

@@ -856,7 +856,12 @@
     </div>
     {% endif %}
     <!-- --- END NEW FC MODAL --- -->
-    <!-- --- NEW: CUSTOM CONFIRM MODAL --- -->
+    <!--
+    ---
+    --- NEW: CUSTOM CONFIRM MODAL (MOVED FROM waitlist_view.html) ---
+    --- This is now available on all pages.
+    ---
+    -->
     <div class="modal-overlay" id="custom-confirm-modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1086,6 +1091,47 @@
                 });
             });
         });
+
+
+        // ---
+        // --- NEW: CUSTOM CONFIRM MODAL SCRIPT (MOVED FROM waitlist_view.html) ---
+        // ---
+        // This function will store the callback to run on "OK"
+        let _onConfirmCallback = null;
+        const confirmModal = document.getElementById('custom-confirm-modal');
+        const confirmMsg = document.getElementById('custom-confirm-message');
+        const confirmOkBtn = document.getElementById('custom-confirm-ok-btn');
+        const confirmCancelBtn = document.getElementById('custom-confirm-cancel-btn');
+
+        function showCustomConfirm(message, onConfirmCallback) {
+            if (!confirmModal) return;
+
+            confirmMsg.innerHTML = message; // Use innerHTML to allow simple formatting
+            _onConfirmCallback = onConfirmCallback;
+
+            // Show the modal
+            confirmModal.classList.add('show');
+        }
+
+        // Add listeners for the confirm modal buttons
+        if (confirmModal) {
+            confirmOkBtn.addEventListener('click', () => {
+                if (typeof _onConfirmCallback === 'function') {
+                    _onConfirmCallback();
+                }
+                _onConfirmCallback = null; // Clear callback
+                confirmModal.classList.remove('show'); // Hide modal
+            });
+
+            confirmCancelBtn.addEventListener('click', () => {
+                _onConfirmCallback = null; // Clear callback
+                confirmModal.classList.remove('show'); // Hide modal
+            });
+        }
+        // ---
+        // --- END CUSTOM CONFIRM SCRIPT ---
+        // ---
+
     </script>
 
 

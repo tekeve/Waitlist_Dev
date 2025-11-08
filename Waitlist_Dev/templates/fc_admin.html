@@ -6,8 +6,12 @@
 
 {% block styles %}
 <style>
+    /* ---
+    --- NEW COMPACT STYLES
+    --- */
     .container {
-        max-width: 800px;
+        /* Widen container to fit side-by-side elements */
+        max-width: 1200px;
         margin: 20px auto;
         background: #2a2a2a;
         border-radius: 8px;
@@ -18,19 +22,52 @@
     h1 {
         border-bottom: 1px solid #444;
         padding-bottom: 10px;
+        margin-top: 0;
     }
 
     .admin-section {
         background: #333;
         border: 1px solid #444;
         border-radius: 8px;
-        padding: 20px;
-        margin-top: 20px;
+        padding: 15px; /* Reduced padding */
+        margin-top: 15px; /* Reduced margin */
     }
 
         .admin-section h2 {
             margin-top: 0;
+            font-size: 1.3em; /* Smaller header */
         }
+
+    /* --- MODIFIED: Renamed to top-management-grid --- */
+    .top-management-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+
+    /* --- NEW: Grid for status and close button --- */
+    .status-grid {
+        display: grid;
+        grid-template-columns: 3fr 1fr; /* 3 parts for info, 1 for button */
+        gap: 15px;
+        align-items: end; /* Align items to bottom */
+    }
+
+    .status-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* Two columns for info fields */
+        gap: 10px;
+    }
+
+    #close-waitlist-form {
+        margin: 0;
+    }
+
+        #close-waitlist-form .btn {
+            width: 100%; /* Make button fill its grid cell */
+        }
+    /* --- END NEW GRIDS --- */
+
 
     .status-open {
         color: #28a745;
@@ -43,13 +80,14 @@
     .form-group {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        margin-bottom: 15px;
+        gap: 5px; /* Reduced gap */
+        margin-bottom: 10px; /* Reduced margin */
     }
 
         .form-group label {
             font-weight: 600;
             color: #ccc;
+            font-size: 0.9em; /* Smaller label */
         }
 
         .form-group input,
@@ -57,24 +95,43 @@
             background: #222;
             border: 1px solid #555;
             border-radius: 5px;
-            padding: 10px;
+            padding: 8px 10px; /* Reduced padding */
             color: #fff;
             font-family: inherit;
-            font-size: 1em;
+            font-size: 0.95em; /* Smaller font */
+        }
+
+            .form-group input[readonly] {
+                background: #1a1a1a;
+                color: #888;
+                cursor: not-allowed;
+            }
+
+        .form-group p { /* Compact help text */
+            color: #aaa;
+            font-style: italic;
+            font-size: 0.85em;
+            margin: 2px 0 0 0;
         }
 
     .btn {
         display: inline-block;
-        padding: 10px 18px;
+        padding: 8px 14px; /* Reduced padding */
         color: #fff;
         text-decoration: none;
         border-radius: 5px;
         font-weight: bold;
-        font-size: 1em;
+        font-size: 0.95em; /* Smaller font */
         transition: background-color 0.3s;
         cursor: pointer;
         border: none;
     }
+
+        .btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
 
     .btn-danger {
         background-color: #993333;
@@ -100,12 +157,21 @@
             background-color: #c99900;
         }
 
+    .btn-primary {
+        background-color: #3b5998;
+    }
+
+        .btn-primary:hover {
+            background-color: #4e71bb;
+        }
+
     /* Message styles */
     .message {
-        padding: 15px;
-        margin-bottom: 20px;
+        padding: 10px 15px; /* Reduced padding */
+        margin-bottom: 15px; /* Reduced margin */
         border-radius: 5px;
         font-weight: 500;
+        font-size: 0.95em;
     }
 
     .message-success {
@@ -122,6 +188,118 @@
         background: #007bff;
         color: #fff;
     }
+
+    /* ---
+    --- FLEET STRUCTURE (COMPACT)
+    --- */
+    .fleet-structure-container {
+        border-top: 1px solid #444;
+        margin-top: 15px; /* Reduced margin */
+        padding-top: 15px; /* Reduced padding */
+    }
+
+    .fleet-structure-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px; /* Reduced margin */
+    }
+
+        .fleet-structure-header .btn {
+            padding: 6px 10px; /* Smaller button */
+            font-size: 0.9em;
+        }
+
+    .fleet-wing {
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 5px;
+        margin-bottom: 10px; /* Reduced margin */
+    }
+
+    .wing-header {
+        background: #3a3a3a;
+        padding: 8px 12px; /* Reduced padding */
+        font-size: 1em; /* Smaller font */
+        font-weight: 600;
+        border-bottom: 1px solid #444;
+        border-radius: 5px 5px 0 0;
+    }
+
+    .squad-list {
+        padding: 10px 12px; /* Reduced padding */
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 15px; /* Reduced gap */
+    }
+
+    .squad-item {
+        display: flex;
+        align-items: center;
+        gap: 8px; /* Reduced gap */
+    }
+
+        .squad-item label {
+            flex-shrink: 0;
+            font-weight: 500;
+            color: #ccc;
+            width: 100px; /* Shorter label width */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.9em; /* Smaller font */
+        }
+
+        .squad-item select {
+            width: 100%; /* Fill remaining space */
+            padding: 5px 8px; /* Smaller select box */
+            font-size: 0.9em;
+        }
+
+    #btn-save-mappings {
+        margin-top: 10px;
+        margin-right: 10px;
+    }
+
+    /* Responsive layout for structure */
+    @media (max-width: 900px) {
+        /* Stack the main grid on smaller screens */
+        /* --- MODIFIED: Renamed selector --- */
+        .top-management-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 600px) {
+        /* Stack the status grid */
+        .status-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .status-info {
+            grid-template-columns: 1fr;
+        }
+
+        /* Stack squad list */
+        .squad-list {
+            grid-template-columns: 1fr;
+        }
+
+        .squad-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+
+            .squad-item label {
+                width: 100%;
+            }
+    }
+
+    /* ---
+    --- END COMPACT STYLES
+    --- */
+
 </style>
 {% endblock %}
 
@@ -139,54 +317,92 @@
     SECTION 1: A Waitlist is OPEN
     =================================
     -->
-    <div class="admin-section" id="section-waitlist-open">
-        <h2>Current Waitlist Status: <span class="status-open">OPEN</span></h2>
+    <!-- --- NEW: Top Grid for Status and Linking --- -->
+    <div class="top-management-grid">
 
-        <div class="form-group">
-            <label>Current Description</label>
-            <input type="text" value="{{ open_waitlist.fleet.description }}" readonly>
-        </div>
-        <div class="form-group">
-            <label>Current FC</label>
-            <input type="text" value="{{ open_waitlist.fleet.fleet_commander.character_name }}" readonly>
-        </div>
-        <div class="form-group">
-            <label>Current ESI Fleet ID</label>
-            <input type="text" value="{{ open_waitlist.fleet.esi_fleet_id }}" readonly>
-        </div>
+        <!-- Status Grid -->
+        <div class="admin-section" id="section-waitlist-status">
+            <div class="status-grid">
+                <div class="status-info">
+                    <div class="form-group">
+                        <label>Current Description</label>
+                        <input type="text" value="{{ open_waitlist.fleet.description }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Current FC</label>
+                        <input type="text" value="{{ open_waitlist.fleet.fleet_commander.character_name|default:'Not Assigned' }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Current ESI Fleet ID</label>
+                        <input type="text" id="esi-fleet-id-display" value="{{ open_waitlist.fleet.esi_fleet_id|default:'Not Linked' }}" readonly>
+                    </div>
+                </div>
 
-        <form id="close-waitlist-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="close">
-            <button type="submit" class="btn btn-danger" id="close-waitlist-btn">Close This Waitlist</button>
-        </form>
-    </div>
-
-    <!-- "TAKE OVER" FORM -->
-    <div class="admin-section" id="section-takeover-waitlist">
-        <h2>Take Over Fleet</h2>
-        <form id="takeover-waitlist-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="takeover">
-
-            <div class="form-group">
-                <label for="takeover-fc-select">Your FC Character</label>
-                <select id="takeover-fc-select" name="fleet_commander_id" required>
-                    <option value="">-- Select your character --</option>
-                    {% for char in user_fc_characters %}
-                    <option value="{{ char.character_id }}">{{ char.character_name }}</option>
-                    {% endfor %}
-                </select>
+                <form id="close-waitlist-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="close">
+                    <button type="submit" class="btn btn-danger" id="close-waitlist-btn">Close This Waitlist</button>
+                </form>
             </div>
+        </div>
+        <!-- END Status Grid -->
+        <!-- "TAKE OVER" / "LINK FLEET" FORM -->
+        <div class="admin-section" id="section-link-fleet">
+            <h2>Link In-Game Fleet</h2>
+            <form id="link-fleet-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="takeover">
 
-            <p style="color: #aaa; font-style: italic; font-size: 0.9em;">
-                Ensure you are in a fleet and are the fleet boss before clicking.
-            </p>
+                <div class="form-group">
+                    <label for="link-fc-select">Your FC Character</label>
+                    <select id="link-fc-select" name="fleet_commander_id" required>
+                        <option value="">-- Select your character --</option>
+                        {% for char in user_fc_characters %}
+                        <option value="{{ char.character_id }}"
+                                {% if open_waitlist.fleet.fleet_commander and open_waitlist.fleet.fleet_commander.character_id == char.character_id %} selected{% endif %}>
+                            {{ char.character_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-            <button type="submit" class="btn btn-warning" id="takeover-waitlist-btn">Take Over Waitlist</button>
-        </form>
+                <div class="form-group">
+                    <p>
+                        You must be in a fleet and be the fleet boss. This will link your current fleet to the waitlist.
+                    </p>
+                </div>
+
+                <button type="submit" class="btn btn-warning" id="link-fleet-btn">Link Fleet</button>
+            </form>
+        </div>
+        <!-- END Link Fleet Form -->
+
     </div>
+    <!-- --- END NEW: Top Grid --- -->
+    <!-- --- MODIFIED: Fleet structure is now full-width below --- -->
+    <div class="admin-section" id="section-fleet-structure" {% if not open_waitlist.fleet.esi_fleet_id %}style="display: none;" {% endif %}>
+        <div class="fleet-structure-header">
+            <h2>Fleet Structure & Mappings</h2>
+            <button type="button" class="btn btn-primary" id="btn-create-layout">Create Default Layout</button>
+        </div>
 
+        <div class="form-group">
+            <p>
+                Assign categories to your in-game squads. Pilots invited from a category
+                will be sent directly to that squad.
+            </p>
+        </div>
+
+        <!-- This container will be filled by JavaScript -->
+        <div id="fleet-structure-body">
+            <p>Loading fleet structure...</p>
+        </div>
+
+        <button type="button" class="btn btn-success" id="btn-save-mappings">Save Mappings</button>
+        <button type="button" class="btn btn-primary" id="btn-refresh-structure">Refresh Structure</button>
+
+    </div>
+    <!-- --- END MODIFICATION --- -->
     {% else %}
     <!--
     =================================
@@ -195,13 +411,15 @@
     -->
     <div class="admin-section" id="section-waitlist-closed">
         <h2>Current Waitlist Status: <span class="status-closed">CLOSED</span></h2>
-        <p>Use the form below to open a new waitlist. You must be the fleet boss of an active fleet.</p>
 
         <form id="open-waitlist-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="open">
 
-            <!-- --- MODIFIED: FC Character Select --- -->
+            <div class="form-group">
+                <p>Use the form below to open a new waitlist. You can link an in-game fleet later.</p>
+            </div>
+
             <div class="form-group">
                 <label for="fc-select">Your FC Character</label>
                 <select id="fc-select" name="fleet_commander_id" required>
@@ -212,7 +430,6 @@
                 </select>
             </div>
 
-            <!-- --- MODIFIED: Fleet Type Select (was text input) --- -->
             <div class="form-group">
                 <label for="fleet-select">Fleet Type</label>
                 <select id="fleet-select" name="fleet_id" required>
@@ -222,7 +439,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <!-- --- END MODIFICATION --- -->
 
             <button type="submit" class="btn btn-success" id="open-waitlist-btn">Open New Waitlist</button>
         </form>
@@ -244,6 +460,14 @@
             messageContainer.innerHTML = `<div class="message message-${type}">${text}</div>`;
         }
 
+        // --- Helper to clear messages ---
+        function clearMessage() {
+            messageContainer.innerHTML = "";
+        }
+
+        // --- Get CSRF token ---
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
         // --- 1. Handle OPEN Waitlist ---
         const openForm = document.getElementById('open-waitlist-form');
         if (openForm) {
@@ -251,7 +475,7 @@
                 e.preventDefault();
                 const button = document.getElementById('open-waitlist-btn');
                 button.disabled = true;
-                showMessage('loading', 'Opening waitlist... Verifying with ESI...');
+                showMessage('loading', 'Opening waitlist...');
 
                 const formData = new FormData(openForm);
 
@@ -283,48 +507,55 @@
             closeForm.addEventListener('submit', (e) => {
                 e.preventDefault();
 
-                if (!confirm('Are you sure you want to close this waitlist? All pending fits will be denied.')) {
-                    return;
-                }
+                // --- MODIFIED: Use new custom confirm ---
+                showCustomConfirm(
+                    'Are you sure you want to close this waitlist? All pending fits will be denied.',
+                    () => {
+                        // This code runs if they click "Confirm"
+                        const button = document.getElementById('close-waitlist-btn');
+                        button.disabled = true;
+                        showMessage('loading', 'Closing waitlist...');
 
-                const button = document.getElementById('close-waitlist-btn');
-                button.disabled = true;
-                showMessage('loading', 'Closing waitlist...');
+                        const formData = new FormData(closeForm);
 
-                const formData = new FormData(closeForm);
-
-                fetch(apiUrl, {
-                    method: 'POST',
-                    body: formData,
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            showMessage('success', data.message);
-                            window.location.reload(); // Reload to show the new state
-                        } else {
-                            showMessage('error', `Error: ${data.message}`);
-                            button.disabled = false;
-                        }
-                    })
-                    .catch(err => {
-                        showMessage('error', `Network Error: ${err}`);
-                        button.disabled = false;
-                    });
+                        fetch(apiUrl, {
+                            method: 'POST',
+                            body: formData,
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    showMessage('success', data.message);
+                                    window.location.reload(); // Reload to show the new state
+                                } else {
+                                    showMessage('error', `Error: ${data.message}`);
+                                    button.disabled = false;
+                                }
+                            })
+                            .catch(err => {
+                                showMessage('error', `Network Error: ${err}`);
+                                button.disabled = false;
+                            });
+                    }
+                );
+                // --- END MODIFICATION ---
             });
         }
 
-        // --- 3. Handle TAKEOVER Waitlist ---
-        const takeoverForm = document.getElementById('takeover-waitlist-form');
-        if (takeoverForm) {
-            takeoverForm.addEventListener('submit', (e) => {
+        // --- 3. Handle "Link Fleet" (formerly TAKEOVER) ---
+        // --- MODIFIED: Form ID ---
+        const linkFleetForm = document.getElementById('link-fleet-form');
+        if (linkFleetForm) {
+            linkFleetForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const button = document.getElementById('takeover-waitlist-btn');
+                // --- MODIFIED: Button ID ---
+                const button = document.getElementById('link-fleet-btn');
                 button.disabled = true;
-                showMessage('loading', 'Taking over waitlist... Verifying with ESI...');
+                // --- MODIFIED: Text ---
+                showMessage('loading', 'Linking fleet... Verifying with ESI...');
 
-                const formData = new FormData(takeoverForm);
+                const formData = new FormData(linkFleetForm);
 
                 fetch(apiUrl, {
                     method: 'POST',
@@ -335,7 +566,12 @@
                     .then(data => {
                         if (data.status === 'success') {
                             showMessage('success', data.message);
-                            window.location.reload(); // Reload to show the new state
+                            // --- MODIFIED: Update display, don't reload ---
+                            document.getElementById('esi-fleet-id-display').value = data.esi_fleet_id;
+                            document.getElementById('section-fleet-structure').style.display = 'block';
+                            loadFleetStructure(); // Load structure
+                            button.disabled = false; // Re-enable
+                            // --- END MODIFICATION ---
                         } else {
                             showMessage('error', `Error: ${data.message}`);
                             button.disabled = false;
@@ -347,6 +583,187 @@
                     });
             });
         }
+
+
+        // ---
+        // --- 4. NEW: Fleet Structure Logic
+        // ---
+        const structureSection = document.getElementById('section-fleet-structure');
+        const structureBody = document.getElementById('fleet-structure-body');
+        const saveMappingsBtn = document.getElementById('btn-save-mappings');
+        const createLayoutBtn = document.getElementById('btn-create-layout');
+        const refreshStructureBtn = document.getElementById('btn-refresh-structure');
+
+        // Function to load and render the fleet structure
+        function loadFleetStructure() {
+            if (!structureBody) return;
+            structureBody.innerHTML = '<p>Loading fleet structure...</p>';
+
+            fetch("{% url 'waitlist:api_get_fleet_structure' %}")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        renderFleetStructure(data.structure);
+                    } else {
+                        structureBody.innerHTML = `<p style="color: #ff8a8a;">Error: ${data.message}</p>`;
+                    }
+                })
+                .catch(err => {
+                    structureBody.innerHTML = `<p style="color: #ff8a8a;">Network Error: ${err.message}</p>`;
+                });
+        }
+
+        // Function to render the HTML for the structure
+        function renderFleetStructure(structure) {
+            let html = '';
+
+            // Build the <option> tags for categories
+            let categoryOptions = '<option value="">-- None --</option>';
+            structure.available_categories.forEach(cat => {
+                categoryOptions += `<option value="${cat.id}">${cat.name}</option>`;
+            });
+
+            // Build the wings and squads
+            structure.wings.forEach(wing => {
+                html += `<div class="fleet-wing">`;
+                html += `<div class="wing-header">${wing.name} (ID: ${wing.id})</div>`;
+                html += `<div class="squad-list">`;
+
+                wing.squads.forEach(squad => {
+                    html += `<div class="squad-item">`;
+                    html += `<label for="squad-${squad.id}" title="${squad.name} (ID: ${squad.id})">${squad.name}</label>`;
+                    html += `<select id="squad-${squad.id}" data-squad-id="${squad.id}" class="squad-category-select">`;
+                    html += categoryOptions; // Add all options
+                    html += `</select>`;
+                    html += `</div>`;
+                });
+
+                html += `</div></div>`;
+            });
+
+            structureBody.innerHTML = html;
+
+            // Now, pre-select the saved options
+            structure.wings.forEach(wing => {
+                wing.squads.forEach(squad => {
+                    if (squad.assigned_category) {
+                        const select = document.getElementById(`squad-${squad.id}`);
+                        if (select) {
+                            select.value = squad.assigned_category;
+                        }
+                    }
+                });
+            });
+        }
+
+        // --- 5. Handle SAVE Mappings ---
+        if (saveMappingsBtn) {
+            saveMappingsBtn.addEventListener('click', () => {
+                const selects = document.querySelectorAll('.squad-category-select');
+                const mappings = {}; // { "LOGI": 12345, "DPS": null }
+                const assignedCategories = new Set();
+
+                let hasDuplicate = false;
+
+                selects.forEach(select => {
+                    const category = select.value;
+                    const squadId = select.dataset.squadId;
+
+                    if (category) { // If a category is chosen
+                        if (assignedCategories.has(category)) {
+                            hasDuplicate = true;
+                            showMessage('error', `Error: Category '${category}' is assigned to multiple squads.`);
+                        }
+                        assignedCategories.add(category);
+                        mappings[category] = squadId;
+                    }
+                });
+
+                if (hasDuplicate) return; // Stop if duplicates found
+
+                saveMappingsBtn.disabled = true;
+                showMessage('loading', 'Saving mappings...');
+
+                fetch("{% url 'waitlist:api_save_squad_mappings' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ mappings: mappings })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showMessage('success', data.message);
+                        } else {
+                            showMessage('error', `Error: ${data.message}`);
+                        }
+                    })
+                    .catch(err => {
+                        showMessage('error', `Network Error: ${err.message}`);
+                    })
+                    .finally(() => {
+                        saveMappingsBtn.disabled = false;
+                    });
+            });
+        }
+
+        // --- 6. Handle CREATE Default Layout ---
+        if (createLayoutBtn) {
+            createLayoutBtn.addEventListener('click', () => {
+
+                showCustomConfirm(
+                    "This will rename and create wings/squads in your active EVE fleet to match the default layout. Are you sure?",
+                    () => {
+                        // Run on confirm
+                        createLayoutBtn.disabled = true;
+                        showMessage('loading', 'Applying default layout to in-game fleet...');
+
+                        fetch("{% url 'waitlist:api_fc_create_default_layout' %}", {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    showMessage('success', data.message);
+                                    // Refresh the structure to show new names/mappings
+                                    loadFleetStructure();
+                                } else {
+                                    showMessage('error', `Error: ${data.message}`);
+                                }
+                            })
+                            .catch(err => {
+                                showMessage('error', `Network Error: ${err.message}`);
+                            })
+                            .finally(() => {
+                                createLayoutBtn.disabled = false;
+                            });
+                    }
+                );
+            });
+        }
+
+        // --- 7. Handle REFRESH Structure ---
+        if (refreshStructureBtn) {
+            refreshStructureBtn.addEventListener('click', () => {
+                clearMessage();
+                loadFleetStructure();
+            });
+        }
+
+        // --- On Page Load, if structure section is visible, load it ---
+        if (structureSection && structureSection.style.display !== 'none') {
+            loadFleetStructure();
+        }
+        // ---
+        // --- END Fleet Structure Logic
+        // ---
 
     });
 </script>
