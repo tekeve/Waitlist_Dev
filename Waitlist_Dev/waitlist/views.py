@@ -240,16 +240,17 @@ def fittings_view(request):
 
 
 # ---
-# --- NEW HELPER: Build Slotted Fit (for Doctrine Modal)
+# --- THIS IS THE FIX: This function now trusts the parser's 'final_slot'
 # ---
 def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
     """
     Takes a ship's EveType and a parsed fit list (from JSON)
     and returns a fully slotted fit dictionary.
+    
+    This now trusts the 'final_slot' provided by the parser.
     """
     
-    # 1. Get base slot counts from the ship's EveType
-    # (Default to 0 if null)
+    # 1. Get base slot counts from the ship's EveType (for display)
     slot_counts = {
         'high': int(ship_eve_type.hi_slots or 0),
         'mid': int(ship_eve_type.med_slots or 0),
@@ -268,70 +269,105 @@ def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
     # 4. Create bins for all fitted items
     item_bins = {
         'high': [], 'mid': [], 'low': [], 'rig': [], 
-        'subsystem': [], 'drone': [], 'cargo': []
+        'subsystem': [], 'drone': [], 'cargo': [],
+        'ship': [], 'BLANK_LINE': []
     }
     
     for item in parsed_fit_list:
-        type_id = item.get('type_id')
-        if not type_id or type_id == ship_eve_type.type_id:
-            continue # Skip hull or invalid items
-
-        item_type = item_types_map.get(type_id)
-        if not item_type:
-            continue # Unknown item
+        # ---
+        # --- THIS IS THE FIX ---
+        # ---
+        # Trust the parser's 'final_slot' designation
+        final_slot = item.get('final_slot')
+        if not final_slot or final_slot not in item_bins:
+            final_slot = 'cargo' # Fallback
+        # ---
+        # --- END THE FIX ---
+        # ---
             
-        # Create the item object
+        type_id = item.get('type_id')
+        item_type = item_types_map.get(type_id) if type_id else None
+        
+        # Build the item object
         item_obj = {
             "type_id": type_id,
-            "name": item_type.name,
-            "icon_url": item_type.icon_url,
+            "name": item.get('name', 'Unknown'),
+            "icon_url": item.get('icon_url'),
             "quantity": item.get('quantity', 1),
-            "raw_line": item.get('raw_line', item_type.name),
-            "is_empty": False
+            "raw_line": item.get('raw_line', item.get('name', 'Unknown')),
+            # An item is "empty" if it's a fittable slot and has no type_id
+            "is_empty": (final_slot in ['high','mid','low','rig','subsystem'] and not type_id)
         }
+
+        if item_type:
+            # Overwrite with canonical data from DB
+            item_obj['name'] = item_type.name
+            item_obj['icon_url'] = item_type.icon_url
+
+        if final_slot == 'BLANK_LINE':
+            # We don't add blank lines to the final display
+            continue
         
-        # Sort item into the correct bin
-        slot_type = item_type.slot_type
-        if slot_type in item_bins:
-            item_bins[slot_type].append(item_obj)
-        else:
-            # Not a slotted module or drone, must be cargo
-            item_bins['cargo'].append(item_obj)
+        # Add to the correct bin
+        item_bins[final_slot].append(item_obj)
+
 
     # 5. Create the final slotted structure
     final_slots = {}
     
-    # For T3Cs, we just show what's fitted. We don't pad with empty slots
-    # because we can't be sure of the final slot count without complex dogma logic.
+    # ---
+    # --- THIS IS THE FIX: Re-introduce padding logic, remove overflow logic
+    # ---
     if is_t3c:
-        final_slots = item_bins # Just return the bins of fitted items
-        # Set counts to the *fitted* amount
+        # T3Cs don't get padded, just show what's fitted
+        final_slots = {
+            'high': item_bins['high'],
+            'mid': item_bins['mid'],
+            'low': item_bins['low'],
+            'rig': item_bins['rig'],
+            'subsystem': item_bins['subsystem'],
+        }
+        # Update slot_counts to match fitted count for T3Cs
         slot_counts['high'] = len(item_bins['high'])
         slot_counts['mid'] = len(item_bins['mid'])
         slot_counts['low'] = len(item_bins['low'])
         slot_counts['rig'] = len(item_bins['rig'])
-        # Subsystem count is from the hull
-        
     else:
-        # For regular ships, pad with empty slots
+        # Regular ships get padded with empty slots
         for slot_key in ['high', 'mid', 'low', 'rig', 'subsystem']:
             total_slots = slot_counts[slot_key]
+            # ---
+            # --- THIS IS THE FIX: Build the slot_list from the bin FIRST
+            # ---
+            slot_list = []
+            
+            # Add all items the parser put in this bin
+            # (This includes fitted items AND empty slots from the fit)
             fitted_items = item_bins[slot_key]
+            for item in fitted_items:
+                slot_list.append(item)
             
-            # Create a list of N empty slots
+            # Now, pad with default empty slots if needed
             empty_slot_name = f"[Empty {slot_key.capitalize()} Slot]"
-            slot_list = [{"name": empty_slot_name, "is_empty": True}] * total_slots
-            
-            # Replace empty slots with fitted items
-            for i, item in enumerate(fitted_items):
-                if i < total_slots:
-                    slot_list[i] = item
+            while len(slot_list) < total_slots:
+                slot_list.append({
+                    "name": empty_slot_name, 
+                    "is_empty": True,
+                    "raw_line": empty_slot_name,
+                    "type_id": None
+                })
+            # ---
+            # --- END THE FIX
+            # ---
             
             final_slots[slot_key] = slot_list
 
-        # Drones and cargo are just lists
-        final_slots['drone'] = item_bins['drone']
-        final_slots['cargo'] = item_bins['cargo']
+    # Drones and cargo are just lists
+    final_slots['drone'] = item_bins['drone']
+    final_slots['cargo'] = item_bins['cargo']
+    # ---
+    # --- END THE FIX ---
+    # ---
 
     return {
         "ship": {
@@ -355,7 +391,7 @@ def api_get_doctrine_fit_details(request):
     Returns the details for a specific doctrine fit.
     This is for the public fittings page modal.
     
-    --- MODIFIED TO RETURN NEW SLOTTED STRUCTURE ---
+    --- MODIFIED TO USE NEW SLOTTED STRUCTURE ---
     """
     fit_id = request.GET.get('fit_id')
     if not fit_id:
@@ -379,7 +415,13 @@ def api_get_doctrine_fit_details(request):
                 parsed_list = [] # No data
 
         # 3. Build the slotted context
+        # ---
+        # --- THIS IS THE FIX: Call the corrected helper function
+        # ---
         slotted_context = _build_slotted_fit_context(ship_eve_type, parsed_list)
+        # ---
+        # --- END THE FIX ---
+        # ---
 
         # 4. Return the new structure + the raw EFT for copying
         return JsonResponse({
@@ -559,13 +601,15 @@ def api_get_waitlist_html(request):
     return render(request, '_waitlist_columns.html', context)
 
 
-# --- NEW API VIEW: Get Fit Details for Modal ---
+# ---
+# --- THIS IS THE FIX: This function now trusts the parser's 'final_slot'
+# ---
 @login_required
 def api_get_fit_details(request):
     """
     Returns the parsed fit JSON for the FC's inspection modal.
     
-    --- HEAVILY MODIFIED TO RETURN NEW SLOTTED STRUCTURE WITH COMPARISON ---
+    --- HEAVILY MODIFIED TO TRUST THE PARSER'S 'final_slot' ---
     """
     if not is_fleet_commander(request.user):
         return JsonResponse({"status": "error", "message": "Not authorized"}, status=403)
@@ -629,124 +673,174 @@ def api_get_fit_details(request):
         # 4c. Create bins to sort items into
         item_bins = {
             'high': [], 'mid': [], 'low': [], 'rig': [], 
-            'subsystem': [], 'drone': [], 'cargo': []
+            'subsystem': [], 'drone': [], 'cargo': [],
+            'ship': [], 'BLANK_LINE': []
         }
         
         # 4d. Create a copy of doctrine items to "consume" as we find matches
         doctrine_items_to_fill_copy = doctrine_items_to_fill.copy()
         
-        # 4e. Process every item in the user's fit
+        # ---
+        # --- THIS IS THE FIX: A new single loop that trusts 'final_slot'
+        # ---
         for item in full_fit_list:
-            type_id = item.get('type_id')
-            if not type_id or type_id == ship_eve_type.type_id:
-                continue # Skip hull or invalid items
-            
-            item_type = item_types_map.get(type_id)
-            if not item_type:
-                continue # Unknown item
-            
-            item_id_str = str(type_id)
-            qty_in_fit = item.get('quantity', 1)
+            final_slot = item.get('final_slot')
+            if not final_slot or final_slot == 'ship':
+                continue # Skip hull
 
-            # 4f. Create the item object, starting with no status
+            type_id = item.get('type_id')
+            item_type = item_types_map.get(type_id) if type_id else None
+            
+            # Create the item object
             item_obj = {
                 "type_id": type_id,
-                "name": item_type.name,
-                "icon_url": item_type.icon_url,
-                "quantity": qty_in_fit,
-                "raw_line": item.get('raw_line', item_type.name),
-                "is_empty": False,
-                "status": "doctrine", # Default to 'doctrine' (good)
+                "name": item.get('name', 'Unknown'),
+                "icon_url": item.get('icon_url'),
+                "quantity": item.get('quantity', 1),
+                "raw_line": item.get('raw_line', item.get('name', 'Unknown')),
+                # An item is "empty" if it's a fittable slot and has no type_id
+                "is_empty": (final_slot in ['high','mid','low','rig','subsystem'] and not type_id),
+                "status": "doctrine", # Default
                 "potential_matches": [],
                 "substitutes_for": []
             }
+            
+            if item_type:
+                # Overwrite with canonical data from DB
+                item_obj['name'] = item_type.name
+                item_obj['icon_url'] = item_type.icon_url
 
-            # 4g. Check for matches
-            if not doctrine:
-                # No doctrine, so anything that's not a drone/cargo is a "problem"
-                if item_type.slot_type and item_type.slot_type not in ['drone', 'cargo']:
-                    item_obj['status'] = 'problem'
-            else:
-                # We have a doctrine, check for match
-                if item_id_str in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[item_id_str] > 0:
-                    # Exact Match
-                    item_obj['status'] = 'doctrine'
-                    doctrine_items_to_fill_copy[item_id_str] -= qty_in_fit
-                
-                elif item_id_str in reverse_sub_map:
-                    # Substitute Match
-                    base_item_id = reverse_sub_map[item_id_str]
-                    if base_item_id in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[base_item_id] > 0:
-                        item_obj['status'] = 'accepted_sub'
-                        base_type = EveType.objects.get(type_id=base_item_id) # Get sub info
-                        item_obj['substitutes_for'] = [{
-                            "name": base_type.name,
-                            "type_id": base_type.type_id,
-                            "icon_url": base_type.icon_url,
-                            "quantity": doctrine_items_to_fill.get(base_item_id, 0)
-                        }]
-                        doctrine_items_to_fill_copy[base_item_id] -= qty_in_fit
-                    else:
-                        # It's a sub for an item, but not one we need (or we have enough)
+            if final_slot == 'BLANK_LINE':
+                # We don't add blank lines to the final display
+                continue
+            
+            if item_obj['is_empty']:
+                item_obj['status'] = 'empty'
+                item_bins[final_slot].append(item_obj)
+                continue # No comparison needed
+
+            # --- Start Comparison Logic (from old loop) ---
+            if type_id:
+                item_id_str = str(type_id)
+                qty_in_fit = item.get('quantity', 1)
+
+                if not doctrine:
+                    # No doctrine. If it's a fittable item (not drone/cargo), mark as problem
+                    if final_slot not in ['drone', 'cargo']:
                         item_obj['status'] = 'problem'
-                
                 else:
-                    # No match, it's a problem
-                    item_obj['status'] = 'problem'
+                    # We have a doctrine, check for match
+                    if item_id_str in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[item_id_str] > 0:
+                        # Exact Match
+                        item_obj['status'] = 'doctrine'
+                        doctrine_items_to_fill_copy[item_id_str] -= qty_in_fit
+                    
+                    elif item_id_str in reverse_sub_map:
+                        # Substitute Match
+                        base_item_id = reverse_sub_map[item_id_str]
+                        if base_item_id in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[base_item_id] > 0:
+                            item_obj['status'] = 'accepted_sub'
+                            base_type = EveType.objects.get(type_id=base_item_id) # Get sub info
+                            item_obj['substitutes_for'] = [{
+                                "name": base_type.name,
+                                "type_id": base_type.type_id,
+                                "icon_url": base_type.icon_url,
+                                "quantity": doctrine_items_to_fill.get(base_item_id, 0)
+                            }]
+                            doctrine_items_to_fill_copy[base_item_id] -= qty_in_fit
+                        else:
+                            # It's a sub for an item, but not one we need (or we have enough)
+                            item_obj['status'] = 'problem'
+                    
+                    else:
+                        # No match, it's a problem
+                        item_obj['status'] = 'problem'
 
-            # 4h. Find potential matches for 'problem' items
-            if item_obj['status'] == 'problem' and item_type.group_id:
-                missing_ids_in_group = {
-                    int(m_id_str) for m_id_str, qty in doctrine_items_to_fill_copy.items() 
-                    if qty > 0
-                }
-                if missing_ids_in_group:
-                    missing_in_group = EveType.objects.filter(
-                        group_id=item_type.group_id,
-                        type_id__in=missing_ids_in_group
-                    )
-                    for m_type in missing_in_group:
-                        item_obj['potential_matches'].append({
-                            "name": m_type.name, 
-                            "type_id": m_type.type_id, 
-                            "icon_url": m_type.icon_url,
-                            "quantity": doctrine_items_to_fill_copy.get(str(m_type.type_id), 0)
-                        })
+                # Find potential matches for 'problem' items
+                if item_obj['status'] == 'problem' and item_type and item_type.group_id:
+                    missing_ids_in_group = {
+                        int(m_id_str) for m_id_str, qty in doctrine_items_to_fill_copy.items() 
+                        if qty > 0
+                    }
+                    if missing_ids_in_group:
+                        missing_in_group = EveType.objects.filter(
+                            group_id=item_type.group_id,
+                            type_id__in=missing_ids_in_group
+                        )
+                        for m_type in missing_in_group:
+                            item_obj['potential_matches'].append({
+                                "name": m_type.name, 
+                                "type_id": m_type.type_id, 
+                                "icon_url": m_type.icon_url,
+                                "quantity": doctrine_items_to_fill_copy.get(str(m_type.type_id), 0)
+                            })
+            # --- End Comparison Logic ---
 
-            # 4i. Sort item into the correct bin
-            slot_type = item_type.slot_type
-            if slot_type in item_bins:
-                item_bins[slot_type].append(item_obj)
+            # Add to bin
+            if final_slot in item_bins:
+                item_bins[final_slot].append(item_obj)
             else:
-                item_bins['cargo'].append(item_obj)
-        
+                item_bins['cargo'].append(item_obj) # Fallback
+        # ---
+        # --- END THE NEW LOOP
+        # ---
+            
         # 5. Create the final slotted structure
+        # ---
+        # --- THIS IS THE FIX: Re-introduce padding logic
+        # ---
         final_slots = {}
-        
+    
         if is_t3c:
-            # T3C: Just show fitted items, update slot_counts to fitted count
-            final_slots = item_bins
+            # T3Cs don't get padded, just show what's fitted
+            final_slots = {
+                'high': item_bins['high'],
+                'mid': item_bins['mid'],
+                'low': item_bins['low'],
+                'rig': item_bins['rig'],
+                'subsystem': item_bins['subsystem'],
+            }
+            # Update slot_counts to match fitted count for T3Cs
             slot_counts['high'] = len(item_bins['high'])
             slot_counts['mid'] = len(item_bins['mid'])
             slot_counts['low'] = len(item_bins['low'])
             slot_counts['rig'] = len(item_bins['rig'])
         else:
-            # Regular Ship: Pad with empty slots
+            # Regular ships get padded with empty slots
             for slot_key in ['high', 'mid', 'low', 'rig', 'subsystem']:
                 total_slots = slot_counts[slot_key]
+                # ---
+                # --- THIS IS THE FIX: Build the slot_list from the bin FIRST
+                # ---
+                slot_list = []
+                
+                # Add all items the parser put in this bin
                 fitted_items = item_bins[slot_key]
-                
+                for item in fitted_items:
+                    slot_list.append(item)
+
+                # Now, pad with default empty slots if needed
                 empty_slot_name = f"[Empty {slot_key.capitalize()} Slot]"
-                slot_list = [{"name": empty_slot_name, "is_empty": True, "status": "empty"}] * total_slots
-                
-                for i, item in enumerate(fitted_items):
-                    if i < total_slots:
-                        slot_list[i] = item
+                while len(slot_list) < total_slots:
+                    slot_list.append({
+                        "name": empty_slot_name, 
+                        "is_empty": True,
+                        "raw_line": empty_slot_name,
+                        "type_id": None,
+                        "status": "empty"
+                    })
+                # ---
+                # --- END THE FIX
+                # ---
                 
                 final_slots[slot_key] = slot_list
 
-            final_slots['drone'] = item_bins['drone']
-            final_slots['cargo'] = item_bins['cargo']
+        # Drones and cargo are just lists
+        final_slots['drone'] = item_bins['drone']
+        final_slots['cargo'] = item_bins['cargo']
+        # ---
+        # --- END THE FIX ---
+        # ---
             
         # 6. Find any remaining "Missing" items
         final_missing_ids = {
@@ -1513,7 +1607,7 @@ def api_fc_create_default_layout(request):
             
             # 5g. --- CLEANUP SQUADS ---
             # Rename any leftover squads in this wing
-            if squad_index < len(existing_squads):
+            if squad_index < len(existing.squads):
                 for i in range(squad_index, len(existing_squads)):
                     esi_squad = existing_squads[i]
                     squad_id = esi_squad['id']

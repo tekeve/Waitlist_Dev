@@ -14,10 +14,12 @@ def _get_dogma_value(dogma_attributes, attribute_id):
     """Safely find a dogma attribute value from the list."""
     if not dogma_attributes:
         return None
-    for attr in dogma_attributes:
-        if attr['attribute_id'] == attribute_id:
-            return attr.get('value')
-    return None
+
+def _get_dogma_effects(dogma_effects_list):
+    """Safely extracts effect IDs from the dogma_effects list."""
+    if not dogma_effects_list:
+        return set()
+    return {effect.get('effect_id') for effect in dogma_effects_list}
 # ---
 # --- END HELPERS
 # ---
@@ -55,8 +57,30 @@ class Command(BaseCommand):
                 ).results()
                 
                 dogma_attrs = type_data.get('dogma_attributes', [])
+                dogma_effects_list = type_data.get('dogma_effects', []) # --- ADDED ---
                 group = eve_type.group # We already have this from select_related
                 
+                # ---
+                # --- THIS IS THE FIX ---
+                # ---
+                # Check if the group's category_id is missing and fetch it
+                if group.category_id is None:
+                    try:
+                        self.stdout.write(f"    - Group '{group.name}' is stale. Fetching category_id...")
+                        group_data = esi.client.Universe.get_universe_groups_group_id(
+                            group_id=group.group_id
+                        ).results()
+                        group.category_id = group_data.get('category_id')
+                        group.name = group_data.get('name', group.name) # Update name too
+                        group.save()
+                        self.stdout.write(f"    - Updated stale group: {group.name} (Category: {group.category_id})")
+                    except Exception as e:
+                        self.stdout.write(self.style.WARNING(f"    - Could not update group {group.group_id}: {e}"))
+                        # Continue with category_id as None
+                # ---
+                # --- END THE FIX ---
+                # ---
+
                 # 1. Get ship slot counts (if applicable)
                 eve_type.hi_slots = _get_dogma_value(dogma_attrs, 14)
                 eve_type.med_slots = _get_dogma_value(dogma_attrs, 13)
@@ -65,19 +89,27 @@ class Command(BaseCommand):
                 eve_type.subsystem_slots = _get_dogma_value(dogma_attrs, 1367)
 
                 # 2. Get module slot type (if applicable)
+                # ---
+                # --- THIS IS THE FIX ---
+                # ---
                 slot_type = None
+                effect_ids = _get_dogma_effects(dogma_effects_list) # Get the set of effect IDs
+
                 if group.category_id == 18: # Category 18 is Drone
                     slot_type = 'drone'
-                elif _get_dogma_value(dogma_attrs, 125) == 1: # hiSlot
+                elif 12 in effect_ids: # effectID 12 = hiPower
                     slot_type = 'high'
-                elif _get_dogma_value(dogma_attrs, 126) == 1: # medSlot
+                elif 13 in effect_ids: # effectID 13 = medPower
                     slot_type = 'mid'
-                elif _get_dogma_value(dogma_attrs, 127) == 1: # lowSlot
+                elif 11 in effect_ids: # effectID 11 = loPower
                     slot_type = 'low'
-                elif _get_dogma_value(dogma_attrs, 1154) == 1: # rigSlot
+                elif 2663 in effect_ids: # effectID 2663 = rigSlot
                     slot_type = 'rig'
-                elif _get_dogma_value(dogma_attrs, 1373) == 1: # subSystem
+                elif 3772 in effect_ids: # effectID 3772 = subSystem
                     slot_type = 'subsystem'
+                # ---
+                # --- END THE FIX ---
+                # ---
                 
                 eve_type.slot_type = slot_type
                 
@@ -85,7 +117,7 @@ class Command(BaseCommand):
                 eve_type.save()
                 
                 updated_count += 1
-                self.stdout.write(self.style.SUCCESS(f"  Updated: {eve_type.name}"))
+                self.stdout.write(self.style.SUCCESS(f"  Updated: {eve_type.name} (Slot: {slot_type or 'N/A'})"))
                 
                 # Be nice to ESI
                 time.sleep(0.05) 

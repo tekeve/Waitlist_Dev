@@ -34,9 +34,34 @@ def get_or_cache_eve_group(group_id):
             ).results()
             group.name = group_data['name']
             # --- NEW: Save the category_id ---
-            group.category_id = group_data.get('category_id')
-            # --- END NEW ---
-            group.save()
+            # ---
+            # --- THIS IS THE FIX: Handle potential stale group cache
+            # ---
+            if group.category_id is None:
+                if 'category_id' in group_data:
+                    group.category_id = group_data['category_id']
+                group.save()
+            # ---
+            # --- END THE FIX
+            # ---
+            
+        # ---
+        # --- THIS IS THE FIX: Check for stale category_id on existing groups
+        # ---
+        elif group.category_id is None:
+             try:
+                esi = EsiClientProvider()
+                group_data = esi.client.Universe.get_universe_groups_group_id(
+                    group_id=group_id
+                ).results()
+                if 'category_id' in group_data:
+                    group.category_id = group_data['category_id']
+                    group.save()
+             except Exception:
+                pass # Ignore ESI failures on this check
+        # ---
+        # --- END THE FIX
+        # ---
             
         return group
     except Exception as e:
@@ -55,6 +80,12 @@ def _get_dogma_value(dogma_attributes, attribute_id):
         if attr['attribute_id'] == attribute_id:
             return attr.get('value')
     return None
+
+def _get_dogma_effects(dogma_effects_list):
+    """Safely extracts effect IDs from the dogma_effects list."""
+    if not dogma_effects_list:
+        return set()
+    return {effect.get('effect_id') for effect in dogma_effects_list}
 # ---
 # --- END NEW HELPER
 # ---
@@ -121,6 +152,7 @@ def get_or_cache_eve_type(item_name):
                 # --- MODIFIED: Cache all slot and module info ---
                 # ---
                 dogma_attrs = type_data.get('dogma_attributes', [])
+                dogma_effects_list = type_data.get('dogma_effects', []) # --- ADDED ---
                 
                 # 5a. Get implant slot (if applicable)
                 slot = _get_dogma_value(dogma_attrs, 300) # 300 is 'implantSlot'
@@ -133,21 +165,26 @@ def get_or_cache_eve_type(item_name):
                 subsystem_slots = _get_dogma_value(dogma_attrs, 1367)
 
                 # 5c. Get module slot type (if applicable)
+                # ---
+                # --- THIS IS THE FIX ---
+                # ---
                 slot_type = None
+                effect_ids = _get_dogma_effects(dogma_effects_list) # Get the set of effect IDs
+
                 if group.category_id == 18: # Category 18 is Drone
                     slot_type = 'drone'
-                elif _get_dogma_value(dogma_attrs, 125) == 1: # hiSlot
+                elif 12 in effect_ids: # effectID 12 = hiPower
                     slot_type = 'high'
-                elif _get_dogma_value(dogma_attrs, 126) == 1: # medSlot
+                elif 13 in effect_ids: # effectID 13 = medPower
                     slot_type = 'mid'
-                elif _get_dogma_value(dogma_attrs, 127) == 1: # lowSlot
+                elif 11 in effect_ids: # effectID 11 = loPower
                     slot_type = 'low'
-                elif _get_dogma_value(dogma_attrs, 1154) == 1: # rigSlot
+                elif 2663 in effect_ids: # effectID 2663 = rigSlot
                     slot_type = 'rig'
-                elif _get_dogma_value(dogma_attrs, 1373) == 1: # subSystem
+                elif 3772 in effect_ids: # effectID 3772 = subSystem
                     slot_type = 'subsystem'
                 # ---
-                # --- END MODIFICATION
+                # --- END THE FIX ---
                 # ---
                 
                 # 6. Construct the icon URL
@@ -214,6 +251,7 @@ def get_or_cache_eve_type_by_id(type_id):
             # --- MODIFIED: Cache all slot and module info ---
             # ---
             dogma_attrs = type_data.get('dogma_attributes', [])
+            dogma_effects_list = type_data.get('dogma_effects', []) # --- ADDED ---
             
             # 4a. Get implant slot (if applicable)
             slot = _get_dogma_value(dogma_attrs, 300) # 300 is 'implantSlot'
@@ -226,21 +264,26 @@ def get_or_cache_eve_type_by_id(type_id):
             subsystem_slots = _get_dogma_value(dogma_attrs, 1367)
 
             # 4c. Get module slot type (if applicable)
+            # ---
+            # --- THIS IS THE FIX ---
+            # ---
             slot_type = None
+            effect_ids = _get_dogma_effects(dogma_effects_list) # Get the set of effect IDs
+
             if group.category_id == 18: # Category 18 is Drone
                 slot_type = 'drone'
-            elif _get_dogma_value(dogma_attrs, 125) == 1: # hiSlot
+            elif 12 in effect_ids: # effectID 12 = hiPower
                 slot_type = 'high'
-            elif _get_dogma_value(dogma_attrs, 126) == 1: # medSlot
+            elif 13 in effect_ids: # effectID 13 = medPower
                 slot_type = 'mid'
-            elif _get_dogma_value(dogma_attrs, 127) == 1: # lowSlot
+            elif 11 in effect_ids: # effectID 11 = loPower
                 slot_type = 'low'
-            elif _get_dogma_value(dogma_attrs, 1154) == 1: # rigSlot
+            elif 2663 in effect_ids: # effectID 2663 = rigSlot
                 slot_type = 'rig'
-            elif _get_dogma_value(dogma_attrs, 1373) == 1: # subSystem
+            elif 3772 in effect_ids: # effectID 3772 = subSystem
                 slot_type = 'subsystem'
             # ---
-            # --- END MODIFICATION
+            # --- END THE FIX ---
             # ---
             
             # 5. Construct the icon URL
@@ -273,25 +316,24 @@ def get_or_cache_eve_type_by_id(type_id):
 # ---
 
 
-# --- NEW: Centralized EFT Parsing Function ---
+# ---
+# --- THIS IS THE FIX: New parser logic based on EFT block order
+# ---
 def parse_eft_fit(raw_fit_original: str):
     """
     Parses a raw EFT fit string and returns the ship_type object,
     a list of dicts for the JSON blob, and a Counter summary.
     
-    Raises ValueError on parsing failures.
+    This parser now respects the EFT block order (high, mid, low, etc.)
+    and uses blank lines as separators.
     """
     # 1. Minimal sanitization
     raw_fit_no_nbsp = raw_fit_original.replace(u'\xa0', u' ')
     
-    # --- THIS IS THE FIX ---
-    # We no longer strip empty lines with a list comprehension.
-    # We get the raw lines first.
     lines_raw = raw_fit_no_nbsp.splitlines()
     if not lines_raw:
         raise ValueError("Fit is empty.")
     
-    # --- NEW: Find the first non-empty line for the header ---
     first_line_index = -1
     header_line = ""
     for i, line in enumerate(lines_raw):
@@ -303,9 +345,8 @@ def parse_eft_fit(raw_fit_original: str):
             
     if first_line_index == -1:
         raise ValueError("Fit contains only whitespace.")
-    # --- END NEW ---
 
-    # 2. Manually parse the header (first line)
+    # 2. Manually parse the header
     header_match = re.match(r'^\[([^,]+),\s*(.*?)\]$', header_line)
     if not header_match:
         raise ValueError("Could not find valid header. Fit must start with [Ship, Fit Name].")
@@ -314,7 +355,6 @@ def parse_eft_fit(raw_fit_original: str):
     if not ship_name_raw:
         raise ValueError("Ship name in header is empty.")
 
-    # Strip formatting tags (e.g., <color=...>)
     tag_stripper = re.compile(r'<[^>]+>')
     ship_name = tag_stripper.sub('', ship_name_raw).strip()
 
@@ -324,70 +364,105 @@ def parse_eft_fit(raw_fit_original: str):
     if not ship_type:
         raise ValueError(f"Ship hull '{ship_name}' could not be found in ESI. Check spelling.")
     
-    ship_type_id = ship_type.type_id
-    
     # 4. Parse all items in the fit
     parsed_fit_list = [] # For storing JSON
     fit_summary_counter = Counter() # For auto-approval
     
-    # Add the hull to both
+    # Add the hull
     parsed_fit_list.append({
         "raw_line": header_line,
         "type_id": ship_type.type_id,
         "name": ship_type.name,
         "icon_url": ship_type.icon_url,
-        "quantity": 1
+        "quantity": 1,
+        "final_slot": "ship" # Special slot for the hull
     })
     fit_summary_counter[ship_type.type_id] += 1
 
-    # --- REGEX FIX ---
-    # This regex now correctly finds the quantity (e.g., " x6") at the
-    # END of the line, and treats everything before it as the item name.
-    # ^(.*?)       - Group 1: Non-greedily capture the item name (e.g., "Acolyte II")
-    # (?: x(\d+))? - Optional non-capturing group for the quantity
-    #   x         - Matches the literal " x"
-    #   (\d+)     - Group 2: Captures the digits (e.g., "6")
-    # $           - Anchors the match to the end of the string.
     item_regex = re.compile(r'^(.*?)(?: x(\d+))?$')
-    # --- END REGEX FIX ---
+    
+    # ---
+    # --- THIS IS THE FIX: New state machine logic based on EFT block order
+    # ---
+    # This defines the order of fittable sections in an EFT block
+    EFT_SECTION_ORDER = ['high', 'mid', 'low', 'rig', 'subsystem', 'drone']
+    
+    # This tracks the "section" we are currently in by its index in the list
+    current_section_index = 0 # 0 = 'high', 1 = 'mid', ..., 5 = 'drone'
+    
+    # T3Cs are special
+    is_t3c = (ship_type.subsystem_slots or 0) > 0
+    
+    # ---
+    # --- END THE FIX
+    # ---
 
-    # --- MODIFIED: Loop through all lines *after* the header ---
     for line in lines_raw[first_line_index + 1:]:
         stripped_line = line.strip()
-
+        final_slot = 'cargo' # Default to cargo
+        item_type = None
+        quantity = 0
+        
         if not stripped_line:
-            # This is a blank line! Add it.
+            # ---
+            # --- THIS IS THE FIX: Blank line advances the state
+            # ---
+            final_slot = 'BLANK_LINE'
+            
+            if current_section_index < len(EFT_SECTION_ORDER):
+                # Advance to the next fittable section
+                current_section_index += 1
+            # If we're at index 6 (cargo) or higher, we just stay in cargo
+            
             parsed_fit_list.append({
-                "raw_line": "",
-                "type_id": None,
-                "name": "BLANK_LINE", # Special key
-                "icon_url": None,
-                "quantity": 0
+                "raw_line": "", "type_id": None, "name": "BLANK_LINE",
+                "icon_url": None, "quantity": 0, "final_slot": final_slot
             })
             continue
+            # ---
+            # --- END THE FIX
+            # ---
 
         if stripped_line.startswith('[') and stripped_line.endswith(']'):
             # This is an empty slot, e.g., [Empty Low Slot]
+            slot_name = stripped_line.lower()
+            if 'high' in slot_name: item_slot_type = 'high'
+            elif 'med' in slot_name: item_slot_type = 'mid'
+            elif 'low' in slot_name: item_slot_type = 'low'
+            elif 'rig' in slot_name: item_slot_type = 'rig'
+            elif 'subsystem' in slot_name: item_slot_type = 'subsystem'
+            else: item_slot_type = None 
+            
+            if item_slot_type:
+                # This is a fittable empty slot
+                final_slot = item_slot_type
+                
+                # Check if this empty slot is "out of order"
+                try:
+                    item_section_index = EFT_SECTION_ORDER.index(item_slot_type)
+                    if item_section_index < current_section_index:
+                        final_slot = 'cargo' # This is an empty slot from a previous section
+                    else:
+                        # It's from the current or a future section, advance state
+                        current_section_index = item_section_index
+                except ValueError:
+                    final_slot = 'cargo' # Not a fittable slot type
+            else:
+                final_slot = 'cargo' # Unknown empty slot
+            
             parsed_fit_list.append({
-                "raw_line": stripped_line,
-                "type_id": None,
-                "name": stripped_line,
-                "icon_url": None,
-                "quantity": 0
+                "raw_line": stripped_line, "type_id": None, "name": stripped_line,
+                "icon_url": None, "quantity": 0, "final_slot": final_slot
             })
             continue
 
         # This is an item
         match = item_regex.match(stripped_line)
         if not match:
-            # Line is not blank, not an empty slot, and not a parsable item.
-            # We will add it as an "Unknown" line but not try to parse it.
+            # Unknown line
             parsed_fit_list.append({
-                "raw_line": stripped_line,
-                "type_id": None,
-                "name": f"Unknown line: {stripped_line}",
-                "icon_url": None,
-                "quantity": 0
+                "raw_line": stripped_line, "type_id": None, "name": f"Unknown line: {stripped_line}",
+                "icon_url": None, "quantity": 0, "final_slot": 'cargo'
             })
             continue
             
@@ -395,36 +470,83 @@ def parse_eft_fit(raw_fit_original: str):
         quantity = int(match.group(2)) if match.group(2) else 1
         
         if not item_name:
-            continue
+            continue # Skip lines that were just " x5"
 
         # Get or cache the item
         item_type = get_or_cache_eve_type(item_name)
         
         if item_type:
+            item_slot_type = item_type.slot_type # e.g., 'high', 'mid', 'drone', None
+            
+            if item_slot_type is None:
+                # Ammo, paste, etc. This is always cargo.
+                final_slot = 'cargo'
+                
+            # ---
+            # --- THIS IS THE FIX: Check item_slot_type against current_section
+            # ---
+            elif item_slot_type in EFT_SECTION_ORDER:
+                # This is a fittable module
+                try:
+                    item_section_index = EFT_SECTION_ORDER.index(item_slot_type)
+                    
+                    if item_section_index == current_section_index:
+                        # Item matches the current section (e.g., 'high' in 'high')
+                        final_slot = item_slot_type
+                    
+                    elif is_t3c and item_slot_type == 'subsystem' and current_section_index < 5:
+                        # T3C Subsystems are a special case. They can appear
+                        # in high, mid, or low sections.
+                        final_slot = 'subsystem'
+
+                    elif item_section_index > current_section_index:
+                        # This item is from a *future* section
+                        # (e.g., a 'mid' item listed in the 'high' block)
+                        # We must advance our state to this new section.
+                        current_section_index = item_section_index
+                        final_slot = item_slot_type
+                        
+                    else:
+                        # item_section_index < current_section_index
+                        # This item is from a *previous* section
+                        # (e.g., a 'high' item listed in the 'mid' block)
+                        # This must be a spare in the cargo.
+                        final_slot = 'cargo'
+                        
+                except ValueError:
+                    # Should not happen as we checked `in EFT_SECTION_ORDER`
+                    final_slot = 'cargo'
+            
+            else:
+                # Unknown slot_type
+                final_slot = 'cargo'
+            # ---
+            # --- END THE FIX
+            # ---
+
             # Add to our JSON list for the modal
             parsed_fit_list.append({
-                "raw_line": stripped_line, # Use the stripped line
+                "raw_line": stripped_line,
                 "type_id": item_type.type_id,
                 "name": item_type.name,
                 "icon_url": item_type.icon_url,
-                "quantity": quantity
+                "quantity": quantity,
+                "final_slot": final_slot # Save the calculated slot
             })
             # Add to our summary dict for approval
             fit_summary_counter[item_type.type_id] += quantity
         else:
             # Could not find this item in ESI
             parsed_fit_list.append({
-                "raw_line": stripped_line,
-                "type_id": None,
-                "name": f"Unknown Item: {item_name}",
-                "icon_url": None,
-                "quantity": quantity
+                "raw_line": stripped_line, "type_id": None, "name": f"Unknown Item: {item_name}",
+                "icon_url": None, "quantity": quantity, "final_slot": 'cargo'
             })
-            # Raise an error to stop submission of invalid fits
             raise ValueError(f"Unknown item in fit: '{item_name}'. Check spelling.")
 
     return ship_type, parsed_fit_list, fit_summary_counter
-# --- END REPLACEMENT ---
+# ---
+# --- END THE FIX
+# ---
 
 
 # --- NEW PARSING FUNCTION FOR ADMIN ---
