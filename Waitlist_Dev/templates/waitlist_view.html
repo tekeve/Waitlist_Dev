@@ -99,7 +99,7 @@
 
     .fit-card {
         background: #333; /* MODIFIED: Re-added background */
-        border: 0px solid #444; /* MODIFIED: Re-added border */
+        border: 1px solid #444; /* MODIFIED: Re-added border */
         border-radius: 5px;
         margin-bottom: 5px; /* MODIFIED: Was 8px */
         box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* MODIFIED: Re-added shadow */
@@ -116,14 +116,14 @@
         align-items: center;
         gap: 8px; /* MODIFIED: Was 10px */
         padding: 6px; /* MODIFIED: Was 8px */
-        border-bottom: 0px solid #444;
+        border-bottom: 1px solid #444;
     }
 
     .pilot-portrait {
         width: 40px; /* MODIFIED: Was 48px */
         height: 40px; /* MODIFIED: Was 48px */
         border-radius: 5px;
-        border: 0px solid #555;
+        border: 1px solid #555;
     }
 
     .pilot-name {
@@ -233,7 +233,7 @@
     .pilot-stats {
         margin-top: 8px;
         padding-top: 8px;
-        border-top: 0px solid #444;
+        border-top: 1px solid #444;
         display: flex;
         justify-content: space-around;
         font-size: 0.8em;
@@ -256,7 +256,7 @@
     .fc-actions {
         display: flex;
         gap: 5px;
-        border-top: 0px solid #444;
+        border-top: 1px solid #444;
         padding: 6px 8px 4px 8px; /* MODIFIED: Was 8px 10px 5px 10px */
         margin-top: 8px; /* MODIFIED: Was 10px */
         /* --- MODIFIED: Align buttons to the right --- */
@@ -535,10 +535,10 @@ It will be filled by the partial template on page load.
 
         // --- NEW: Store fitId and show footer buttons ---
         currentModalFitId = fitId;
-        fitModalAcceptBtn.style.display = 'inline-block';
-        fitModalDenyBtn.style.display = 'inline-block';
-        fitModalAcceptBtn.disabled = false;
-        fitModalDenyBtn.disabled = false;
+        if(fitModalAcceptBtn) fitModalAcceptBtn.style.display = 'inline-block';
+        if(fitModalDenyBtn) fitModalDenyBtn.style.display = 'inline-block';
+        if(fitModalAcceptBtn) fitModalAcceptBtn.disabled = false;
+        if(fitModalDenyBtn) fitModalDenyBtn.disabled = false;
         // --- END NEW ---
 
         // Show modal with spinner
@@ -579,11 +579,24 @@ It will be filled by the partial template on page load.
                     }
                 // --- END THE FIX ---
                 } else {
+
+                    let isEven = false; // <-- 1. Initialize even/odd tracker
+                    let isFirstItem = true; // <-- NEW: Tracker for ship hull
+
                     data.full_fit_with_status.forEach(item => {
                         const itemKey = String(item.type_id || item.raw_line);
                         let itemClass = '';
                         let indentedListHtml = '';
                         let buttonsHtml = '';
+
+                        // --- MODIFICATION: Also treat [Empty...] lines as spacers ---
+                        if (item.name === "BLANK_LINE" || (item.name && item.name.startsWith('[Empty'))) {
+                        // --- END MODIFICATION ---
+                            html += `<li class="fit-item-blank-line"></li>`;
+                            isEven = false; // <-- 2. Reset tracker on spacer
+                            isFirstItem = false; // No longer first item
+                            return; // 'continue' in a forEach
+                        }
 
                         // --- MODIFIED: Use switch statement for new status ---
                         switch (item.status) {
@@ -637,6 +650,12 @@ It will be filled by the partial template on page load.
                                 break;
                         }
 
+                        // <-- 3. Apply 'even' class if needed
+                        const evenClass = isEven ? 'fit-item-even' : '';
+                        if (evenClass) {
+                            itemClass += ` ${evenClass}`; // Add to existing classes
+                        }
+
                         html += `<li class="${itemClass}" title="${item.name}" data-item-type-id="${itemKey}">`;
 
                         // Logic for icon
@@ -661,6 +680,13 @@ It will be filled by the partial template on page load.
                         html += indentedListHtml;
 
                         html += '</li>';
+
+                        // --- FIX: Don't toggle on the first (ship) line ---
+                        if (isFirstItem) {
+                            isFirstItem = false; // Ship line is done
+                        } else {
+                            isEven = !isEven; // <-- 4. Toggle for next item
+                        }
                     });
                 }
                 html += '</ul></div>';
@@ -687,10 +713,10 @@ It will be filled by the partial template on page load.
 
             // --- NEW: Reset modal state ---
             currentModalFitId = null;
-            fitModalAcceptBtn.style.display = 'none';
-            fitModalDenyBtn.style.display = 'none';
-            fitModalAcceptBtn.disabled = false;
-            fitModalDenyBtn.disabled = false;
+            if(fitModalAcceptBtn) fitModalAcceptBtn.style.display = 'none';
+            if(fitModalDenyBtn) fitModalDenyBtn.style.display = 'none';
+            if(fitModalAcceptBtn) fitModalAcceptBtn.disabled = false;
+            if(fitModalDenyBtn) fitModalDenyBtn.disabled = false;
             // --- END NEW ---
         }
     }
@@ -824,7 +850,7 @@ It will be filled by the partial template on page load.
 
         // --- NEW: Add listeners for modal footer buttons ---
         if (isFC) {
-            fitModalAcceptBtn.addEventListener('click', () => {
+            if(fitModalAcceptBtn) fitModalAcceptBtn.addEventListener('click', () => {
                 if (currentModalFitId) {
                     // Reuse the existing FC action handler
                     // We mock the 'event' object it expects
@@ -843,7 +869,7 @@ It will be filled by the partial template on page load.
                 }
             });
 
-            fitModalDenyBtn.addEventListener('click', () => {
+            if(fitModalDenyBtn) fitModalDenyBtn.addEventListener('click', () => {
                 if (currentModalFitId) {
                     const mockEvent = {
                         target: {

@@ -12,146 +12,92 @@
     }
 
     h1 {
-        border-bottom: 0px solid #444;
+        border-bottom: 1px solid #444;
         padding-bottom: 10px;
         margin-top: 0;
     }
 
-    /* --- NEW STYLES FOR CATEGORY SECTIONS --- */
-    .fit-category-section {
+    /* ---
+    --- NEW CARD LAYOUT STYLES
+    --- */
+
+    .category-section {
         margin-bottom: 30px;
     }
 
-    .fit-category-header {
+    .category-header {
         font-size: 1.8em;
         font-weight: 600;
         color: #fff;
-        border-bottom: 0px solid #555;
-        padding-bottom: 10px;
+        border-bottom: 1px solid #555;
+        padding-bottom: 8px;
         margin-bottom: 15px;
     }
 
-    .ship-card-grid {
+    .fittings-grid {
         display: grid;
-        /* Responsive grid:
-           - 1 column on smallest screens
-           - 2 columns min 400px
-           - 3 columns min 640px
-           - 4 columns min 900px
-           - 5 columns min 1200px
-        */
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        /* --- MODIFICATION: More responsive columns --- */
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 15px;
     }
-    /* --- END NEW --- */
 
-
-    /* --- NEW STYLES FOR "SMALL SHIP CARD" --- */
-    .ship-card-small {
+    .ship-card-button {
+        /* This is the new clickable card */
         display: flex;
-        /* MODIFIED: Align to the top so text stacks nicely */
-        align-items: flex-start;
+        align-items: center;
         gap: 12px;
+        padding: 12px;
         background: #2a2a2a;
-        border: 0px solid #444;
+        border: 1px solid #444;
         border-radius: 8px;
-        padding: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         cursor: pointer;
-        transition: background-color 0.2s, border-color 0.2s;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: background-color 0.2s, transform 0.2s;
+        /* --- NEW: Text alignment --- */
+        text-align: left;
     }
 
-        .ship-card-small:hover {
-            background-color: #333;
-            border-color: #555;
+        .ship-card-button:hover {
+            background: #333;
+            transform: translateY(-2px);
         }
 
     .ship-card-icon {
         width: 48px;
         height: 48px;
-        border-radius: 50%; /* Make it a circle */
-        border: 0px solid #555;
-        background-color: #222; /* Fallback */
+        border-radius: 50%;
+        border: 2px solid #555;
         flex-shrink: 0;
     }
 
-    /* --- NEW: Wrapper for text content --- */
     .ship-card-info {
         display: flex;
         flex-direction: column;
-        /* Allow wrapper to shrink and text to truncate */
+        /* --- NEW: Allow shrinking --- */
         min-width: 0;
-        /* --- NEW: Explicitly align text to the left --- */
-        text-align: left;
     }
 
     .ship-card-name {
-        font-size: 1em;
+        font-size: 1.1em;
         font-weight: 600;
         color: #fff;
-        /* Handle long names */
+        /* --- NEW: Truncate text --- */
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    /* --- NEW: Style for the description --- */
     .ship-card-description {
-        font-size: 0.85em;
-        color: #999;
-        /* Handle text overflow */
+        font-size: 0.9em;
+        color: #aaa;
+        /* --- NEW: Truncate text --- */
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        margin-top: 2px; /* Small space below the name */
     }
-    /* --- END NEW --- */
-
-
     /* ---
-    --- Re-using styles from base.html for the fit list
+    --- END NEW CARD STYLES
     --- */
-    .fit-detail-list {
-        list-style: none;
-        padding: 10px;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-size: 0.85em;
-    }
-
-        .fit-detail-list li {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            padding: 2px 5px;
-            border-radius: 4px;
-            white-space: pre;
-        }
-
-            .fit-detail-list li:nth-child(even) {
-                background: #333;
-            }
-
-            .fit-detail-list li:first-child {
-                font-weight: bold;
-                color: #fff;
-                background: #3a3a3a;
-            }
-
-    .fit-modal-icon {
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-    }
-
-    .fit-modal-icon-placeholder {
-        width: 24px;
-        height: 24px;
-        flex-shrink: 0;
-    }
 </style>
 {% endblock %}
 
@@ -160,140 +106,52 @@
 <div class="container">
     <h1>Doctrine Fittings</h1>
 
-    <!-- ---
-    --- NEW REDESIGNED LAYOUT
-    --- -->
-    {% for group in grouped_fits %}
-    <section class="fit-category-section">
-        <h2 class="fit-category-header">{{ group.name }}</h2>
+    {% for category in grouped_fits %}
+    <div class="category-section">
+        <h2 class="category-header">{{ category.name }}</h2>
 
-        <div class="ship-card-grid">
-            {% for fit in group.fits %}
-            <!-- This is the new small card. It's a button for accessibility. -->
-            <button class="ship-card-small"
-                    data-fit-id="{{ fit.id }}"
-                    title="Click to view fit: {{ fit.name }}">
+        <div class="fittings-grid">
+            {% for fit in category.fits %}
+            <!--
+            This is the new clickable card.
+            It calls the JS function defined in base.html
+            -->
+            <button class="ship-card-button"
+                    onclick="openDoctrineFitModal({{ fit.id }})">
 
                 {% if fit.ship_type %}
                 <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
                      alt="{{ fit.ship_type.name }}"
                      class="ship-card-icon">
                 {% else %}
-                <!-- Placeholder -->
-                <img src="https://placehold.co/48x48/222/555?text=?"
+                <!-- Fallback icon -->
+                <img src="https://placehold.co/64x64/2a2a2a/999?text=?"
                      alt="Unknown Ship"
                      class="ship-card-icon">
                 {% endif %}
 
-                <!-- --- NEW: Text Wrapper --- -->
                 <div class="ship-card-info">
-                    <span class="ship-card-name">{{ fit.name }}</span>
-                    {% if fit.description %}
-                    <span class="ship-card-description">{{ fit.description }}</span>
-                    {% endif %}
+                    <span class="ship-card-name" title="{{ fit.name }}">{{ fit.name }}</span>
+                    <span class="ship-card-description" title="{{ fit.description|default:'' }}">
+                        {{ fit.description|default:''|truncatewords:10 }}
+                    </span>
                 </div>
-                <!-- --- END NEW --- -->
-
             </button>
-            {% endfor %} <!-- End inner loop (fits) -->
+            {% endfor %}
         </div>
-
-    </section>
+    </div>
     {% empty %}
     <p>There are no doctrine fits configured in the database.</p>
-    {% endfor %} <!-- End outer loop (groups) -->
-
+    {% endfor %}
 </div>
 {% endblock %}
 
 
 {% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-
-        // Get modal elements from base.html
-        const doctrineModalOverlay = document.getElementById('doctrine-fit-modal-overlay');
-        const doctrineModalBody = document.getElementById('doctrine-modal-body');
-        const doctrineModalTitle = document.getElementById('doctrine-modal-title');
-        const doctrineModalCopyBtn = document.getElementById('doctrine-modal-copy-btn');
-        const doctrineModalEftHidden = document.getElementById('doctrine-modal-eft-hidden');
-
-        // Use event delegation on the container
-        const container = document.querySelector('.container');
-        if (container && doctrineModalOverlay) {
-
-            container.addEventListener('click', (event) => {
-                const card = event.target.closest('.ship-card-small');
-                if (!card) return; // Click wasn't on a card
-
-                const fitId = card.dataset.fitId;
-                if (!fitId) return;
-
-                // 1. Show modal with spinner
-                doctrineModalTitle.textContent = 'Loading Fit...';
-                doctrineModalBody.innerHTML = '<div class="modal-spinner"></div>';
-                doctrineModalCopyBtn.style.display = 'none'; // Hide copy btn
-                doctrineModalOverlay.classList.add('show');
-
-                // 2. Fetch fit details
-                fetch(`{% url 'waitlist:api_get_doctrine_fit_details' %}?fit_id=${fitId}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.status === 'error') {
-                            throw new Error(data.message);
-                        }
-
-                        // 3. Populate modal content
-                        doctrineModalTitle.textContent = data.name;
-                        doctrineModalEftHidden.value = data.raw_eft;
-                        doctrineModalCopyBtn.style.display = 'block'; // Show copy btn
-                        doctrineModalCopyBtn.textContent = 'Copy EFT Fit'; // Reset button text
-
-                        // 4. Build the HTML list for the fit
-                        let html = '<ul class="fit-detail-list">';
-                        if (data.parsed_list && data.parsed_list.length > 0) {
-                            data.parsed_list.forEach(item => {
-                                // --- NEW: Check for blank line ---
-                                if (item.name === "BLANK_LINE") {
-                                    html += `<li class="fit-item-blank-line"></li>`;
-                                    return; // 'continue' in a forEach
-                                }
-                                // --- END NEW ---
-
-                                html += `<li title="${item.name}">`;
-
-                                // Logic for icon
-                                if (item.icon_url) {
-                                    html += `<img src="${item.icon_url}" alt="${item.name}" class="fit-modal-icon">`;
-                                } else if (item.type_id) {
-                                    html += `<img src="https://images.evetech.net/types/${item.type_id}/icon?size=32" alt="${item.name}" class="fit-modal-icon" onerror="this.style.display='none'">`;
-                                } else {
-                                    html += '<div class="fit-modal-icon-placeholder"></div>';
-                                }
-
-                                // Display the raw line, escaping any HTML
-                                const safe_line = item.raw_line.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                                html += `<span>${safe_line}</span>`;
-                                html += '</li>';
-                            });
-                        } else {
-                            html += '<li>Fit data is missing.</li>';
-                        }
-                        html += '</ul>';
-
-                        doctrineModalBody.innerHTML = html;
-                    })
-                    .catch(error => {
-                        doctrineModalTitle.textContent = 'Error';
-                        doctrineModalBody.innerHTML = `<p style="color: #ff8a8a; padding: 20px;">Error: ${error.message}</p>`;
-                    });
-            });
-        }
-    });
-</script>
+<!--
+This script block is now only for the *public* fittings page modal.
+The logic has been moved to base.html so it can be shared.
+We just need to ensure the `openDoctrineFitModal` function is
+available from the `base.html` script block.
+-->
 {% endblock %}
