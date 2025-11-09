@@ -252,11 +252,19 @@
                         doctrineModalTitle.textContent = data.name;
                         doctrineModalEftHidden.value = data.raw_eft;
                         doctrineModalCopyBtn.style.display = 'block'; // Show copy btn
+                        doctrineModalCopyBtn.textContent = 'Copy EFT Fit'; // Reset button text
 
                         // 4. Build the HTML list for the fit
                         let html = '<ul class="fit-detail-list">';
                         if (data.parsed_list && data.parsed_list.length > 0) {
                             data.parsed_list.forEach(item => {
+                                // --- NEW: Check for blank line ---
+                                if (item.name === "BLANK_LINE") {
+                                    html += `<li class="fit-item-blank-line"></li>`;
+                                    return; // 'continue' in a forEach
+                                }
+                                // --- END NEW ---
+
                                 html += `<li title="${item.name}">`;
 
                                 // Logic for icon

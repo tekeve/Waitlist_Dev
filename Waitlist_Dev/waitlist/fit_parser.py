@@ -197,18 +197,30 @@ def parse_eft_fit(raw_fit_original: str):
     """
     # 1. Minimal sanitization
     raw_fit_no_nbsp = raw_fit_original.replace(u'\xa0', u' ')
-    lines = [line.strip() for line in raw_fit_no_nbsp.splitlines() if line.strip()]
-    if not lines:
-        raise ValueError("Fit is empty or contains only whitespace.")
+    
+    # --- THIS IS THE FIX ---
+    # We no longer strip empty lines with a list comprehension.
+    # We get the raw lines first.
+    lines_raw = raw_fit_no_nbsp.splitlines()
+    if not lines_raw:
+        raise ValueError("Fit is empty.")
+    
+    # --- NEW: Find the first non-empty line for the header ---
+    first_line_index = -1
+    header_line = ""
+    for i, line in enumerate(lines_raw):
+        stripped_line = line.strip()
+        if stripped_line: # Find the first non-empty line
+            first_line_index = i
+            header_line = stripped_line
+            break
+            
+    if first_line_index == -1:
+        raise ValueError("Fit contains only whitespace.")
+    # --- END NEW ---
 
     # 2. Manually parse the header (first line)
-    # --- THIS IS THE FIX ---
-    # The regex is now more specific.
-    # It defines group 1 ([^,]+) as "one or more characters that are NOT a comma".
-    # This correctly captures "Vindicator" from "[Vindicator, Vindicator Entry/Alpha]"
-    # and fails if no comma is present.
-    header_match = re.match(r'^\[([^,]+),\s*(.*?)\]$', lines[0])
-    # --- END FIX ---
+    header_match = re.match(r'^\[([^,]+),\s*(.*?)\]$', header_line)
     if not header_match:
         raise ValueError("Could not find valid header. Fit must start with [Ship, Fit Name].")
         
@@ -216,12 +228,9 @@ def parse_eft_fit(raw_fit_original: str):
     if not ship_name_raw:
         raise ValueError("Ship name in header is empty.")
 
-    # --- NEW FIX: Strip formatting tags ---
-    # This handles fits copied from chat that might include
-    # <color> tags, e.g., [<color=..._>Vindicator</color>, Fit Name]
+    # Strip formatting tags (e.g., <color=...>)
     tag_stripper = re.compile(r'<[^>]+>')
     ship_name = tag_stripper.sub('', ship_name_raw).strip()
-    # --- END NEW FIX ---
 
     # 3. Get the Type ID for the ship (this caches it)
     ship_type = get_or_cache_eve_type(ship_name)
@@ -237,7 +246,7 @@ def parse_eft_fit(raw_fit_original: str):
     
     # Add the hull to both
     parsed_fit_list.append({
-        "raw_line": lines[0],
+        "raw_line": header_line,
         "type_id": ship_type.type_id,
         "name": ship_type.name,
         "icon_url": ship_type.icon_url,
@@ -245,25 +254,55 @@ def parse_eft_fit(raw_fit_original: str):
     })
     fit_summary_counter[ship_type.type_id] += 1
 
-    # Regex to find item names and quantities
-    item_regex = re.compile(r'^(.*?)(?:, .*)?(?: x(\d+))?$')
+    # --- REGEX FIX ---
+    # This regex now correctly finds the quantity (e.g., " x6") at the
+    # END of the line, and treats everything before it as the item name.
+    # ^(.*?)       - Group 1: Non-greedily capture the item name (e.g., "Acolyte II")
+    # (?: x(\d+))? - Optional non-capturing group for the quantity
+    #   x         - Matches the literal " x"
+    #   (\d+)     - Group 2: Captures the digits (e.g., "6")
+    # $           - Anchors the match to the end of the string.
+    item_regex = re.compile(r'^(.*?)(?: x(\d+))?$')
+    # --- END REGEX FIX ---
 
-    # Loop through the rest of the lines
-    for line in lines[1:]:
-        if line.startswith('[') and line.endswith(']'):
+    # --- MODIFIED: Loop through all lines *after* the header ---
+    for line in lines_raw[first_line_index + 1:]:
+        stripped_line = line.strip()
+
+        if not stripped_line:
+            # This is a blank line! Add it.
+            parsed_fit_list.append({
+                "raw_line": "",
+                "type_id": None,
+                "name": "BLANK_LINE", # Special key
+                "icon_url": None,
+                "quantity": 0
+            })
+            continue
+
+        if stripped_line.startswith('[') and stripped_line.endswith(']'):
             # This is an empty slot, e.g., [Empty Low Slot]
             parsed_fit_list.append({
-                "raw_line": line,
+                "raw_line": stripped_line,
                 "type_id": None,
-                "name": line,
+                "name": stripped_line,
                 "icon_url": None,
                 "quantity": 0
             })
             continue
 
         # This is an item
-        match = item_regex.match(line)
+        match = item_regex.match(stripped_line)
         if not match:
+            # Line is not blank, not an empty slot, and not a parsable item.
+            # We will add it as an "Unknown" line but not try to parse it.
+            parsed_fit_list.append({
+                "raw_line": stripped_line,
+                "type_id": None,
+                "name": f"Unknown line: {stripped_line}",
+                "icon_url": None,
+                "quantity": 0
+            })
             continue
             
         item_name = match.group(1).strip()
@@ -278,7 +317,7 @@ def parse_eft_fit(raw_fit_original: str):
         if item_type:
             # Add to our JSON list for the modal
             parsed_fit_list.append({
-                "raw_line": line,
+                "raw_line": stripped_line, # Use the stripped line
                 "type_id": item_type.type_id,
                 "name": item_type.name,
                 "icon_url": item_type.icon_url,
@@ -289,7 +328,7 @@ def parse_eft_fit(raw_fit_original: str):
         else:
             # Could not find this item in ESI
             parsed_fit_list.append({
-                "raw_line": line,
+                "raw_line": stripped_line,
                 "type_id": None,
                 "name": f"Unknown Item: {item_name}",
                 "icon_url": None,
@@ -299,7 +338,7 @@ def parse_eft_fit(raw_fit_original: str):
             raise ValueError(f"Unknown item in fit: '{item_name}'. Check spelling.")
 
     return ship_type, parsed_fit_list, fit_summary_counter
-# --- END NEW Centralized EFT Parsing Function ---
+# --- END REPLACEMENT ---
 
 
 # --- NEW PARSING FUNCTION FOR ADMIN ---
