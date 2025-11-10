@@ -566,6 +566,31 @@
             margin-left: 10px;
         }
 
+        /* --- NEW: CSS for failure reasons --- */
+        .fit-item-failure-list {
+            list-style: none;
+            padding: 4px 0 4px 29px; /* Match other indented lists */
+            margin: 4px 0 0 0;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .fit-item-failure-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #ffc107; /* Warning yellow */
+            font-size: 0.9em;
+        }
+
+            .fit-item-failure-item img {
+                width: 20px; /* Smaller icon */
+                height: 20px;
+            }
+        /* --- END NEW --- */
+
         /* Styles for indented missing item list */
         .fit-item-missing-list {
             list-style: none;
@@ -1269,7 +1294,7 @@
                         // --- This is for the FC modal, but we add it here
                         // --- so the simple builder can ignore it.
                         if (item.status) {
-                            itemClass += ` ${item.status}`;
+                            itemClass += ` fit-item-${item.status}`;
                         }
 
                         html += `<li class="fit-slot-item ${itemClass}" title="${item.name}">`;
@@ -1278,7 +1303,13 @@
                             html += `<img src="https://images.evetech.net/types/2965/icon?size=32" alt="Empty Slot" class="fit-modal-icon" style="opacity: 0.2;">`; // Placeholder icon
                             html += `<span class="fit-item-name">${item.name}</span>`;
                         } else {
-                            html += `<img src="${item.icon_url}" alt="${item.name}" class="fit-modal-icon">`;
+                            // --- *** THIS IS THE FIX: Check for icon_url *** ---
+                            // If the parsed_fit_json is old (pre-SDE), it might be missing
+                            // We fall back to building it from the type_id
+                            const icon_url = item.icon_url || `https://images.evetech.net/types/${item.type_id}/icon?size=32`;
+                            html += `<img src="${icon_url}" alt="${item.name}" class="fit-modal-icon">`;
+                            // --- *** END THE FIX *** ---
+
                             // Use raw_line for accurate text, fallback to name
                             const line_text = item.raw_line || item.name;
                             const safe_line = line_text.replace(/</g, '&lt;').replace(/>/g, '&gt;');

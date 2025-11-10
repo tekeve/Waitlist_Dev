@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 # --- MODIFIED: Import EveType for the new model ---
-from pilot.models import EveType
+from pilot.models import EveType, EveGroup
 import json # Import json for our new fields
 
 # Create your models here.
@@ -344,3 +344,101 @@ class FleetSquad(models.Model):
 # ---
 # --- END NEW FLEET STRUCTURE MODELS ---
 # ---
+
+
+# ---
+# --- NEW MODELS FOR DYNAMIC ITEM COMPARISON ---
+# ---
+class EveDogmaAttribute(models.Model):
+    """
+    Stores a Dogma Attribute so FCs can select them by name
+    instead of remembering the ID.
+    e.g., (20, "cpuPenalty", "...")
+    """
+    attribute_id = models.IntegerField(primary_key=True, unique=True)
+    name = models.CharField(max_length=255, db_index=True)
+    description = models.TextField(blank=True, null=True)
+    icon_id = models.IntegerField(blank=True, null=True)
+    unit_name = models.CharField(max_length=50, blank=True, null=True) # e.g., "CPU" or "m"
+
+    def __str__(self):
+        return f"{self.name} (ID: {self.attribute_id})"
+
+class ItemComparisonRule(models.Model):
+    """
+    Defines the "equal or better" logic for an item group.
+    An FC can configure this in the admin.
+    
+    Example Rule:
+    - group = "Co-Processor"
+    - attribute = "cpuPenalty"
+    - higher_is_better = False
+    
+    This tells the parser: "For Co-Processors, check the 'cpuPenalty'
+    attribute, and a lower value is better."
+    """
+    # Use a string ref to pilot.EveGroup to avoid import issues
+    group = models.ForeignKey(
+        'pilot.EveGroup',
+        on_delete=models.CASCADE,
+        related_name="comparison_rules",
+        help_text="The Item Group this rule applies to (e.g., 'Large Shield Extender')."
+    )
+    attribute = models.ForeignKey(
+        EveDogmaAttribute,
+        on_delete=models.CASCADE,
+        help_text="The attribute to check (e.g., 'shieldCapacity')."
+    )
+    higher_is_better = models.BooleanField(
+        default=True,
+        help_text="Check if 'Higher is Better' (e.g., for damage). Uncheck if 'Lower is Better' (e.g., for 'cpuPenalty')."
+    )
+
+    class Meta:
+        # Ensure we only have one rule per group/attribute combination
+        unique_together = ('group', 'attribute')
+
+    def __str__(self):
+        comparison = "Higher is Better" if self.higher_is_better else "Lower is Better"
+        return f"Rule for {self.group.name}: Check {self.attribute.name} ({comparison})"
+# ---
+# --- END NEW MODELS
+# ---
+
+
+# --- *** NEW MODEL: EveTypeDogmaAttribute *** ---
+# From SDE: dgmTypeAttributes.csv
+class EveTypeDogmaAttribute(models.Model):
+    """
+    This is the link table that stores the *value* of a
+    specific attribute for a specific item.
+    This replaces the attributes_json field on EveType.
+    
+    Example Row:
+    - type = "Vargur" (EveType object)
+    - attribute = "hiSlots" (EveDogmaAttribute object)
+    - value = 8
+    """
+    type = models.ForeignKey(
+        'pilot.EveType',
+        on_delete=models.CASCADE,
+        related_name="dogma_attributes"
+    )
+    attribute = models.ForeignKey(
+        EveDogmaAttribute,
+        on_delete=models.CASCADE,
+        related_name="type_values"
+    )
+    value = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        # We only need one entry per type/attribute pair
+        unique_together = ('type', 'attribute')
+        # Add an index on type_id to speed up lookups for a specific item
+        indexes = [
+            models.Index(fields=['type']),
+        ]
+
+    def __str__(self):
+        return f"{self.type.name} - {self.attribute.name}: {self.value}"
+# --- *** END NEW MODEL *** ---

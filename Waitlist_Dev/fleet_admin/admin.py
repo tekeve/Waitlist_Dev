@@ -3,10 +3,12 @@ from django.contrib import admin
 # --- MODIFIED: Import new models ---
 from waitlist.models import (
     EveCharacter, ShipFit, Fleet, FleetWaitlist, DoctrineFit,
-    FitSubstitutionGroup, FleetWing, FleetSquad
+    FitSubstitutionGroup, FleetWing, FleetSquad,
+    # --- *** NEW: Import new models *** ---
+    EveDogmaAttribute, ItemComparisonRule, EveTypeDogmaAttribute
 )
 # --- MODIFIED: Import EveType ---
-from pilot.models import EveType
+from pilot.models import EveType, EveGroup
 # --- END MODIFIED ---
 # --- NEW IMPORTS for DoctrineFit Admin ---
 from django import forms
@@ -184,7 +186,7 @@ class DoctrineFitAdmin(admin.ModelAdmin):
     list_display = ('name', 'ship_type', 'category')
     # --- MODIFIED: Filter by ship_type's GROUP, not individual ship_type ---
     # This gives you a clean filter for "Battleship", "Cruiser", etc.
-    list_filter = ('category', 'ship_type__group')
+    list_filter = ('category', 'ship_type__group__name')
     # --- END MODIFICATION ---
     search_fields = ('name', 'ship_type__name')
     
@@ -223,10 +225,12 @@ class DoctrineFitAdmin(admin.ModelAdmin):
             # We filter the QuerySet for the 'ship_type' field
             # to only include items where the group's category_id is 6 (Category "Ship").
             kwargs["queryset"] = EveType.objects.filter(
-                group__category_id=6
+                group__category__category_id=6
             ).select_related('group')
             
+        # --- *** THIS IS THE FIX: Removed extra 'self' *** ---
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        # --- *** END THE FIX *** ---
     # --- END NEW ---
 
 
@@ -271,3 +275,40 @@ class FleetSquadAdmin(admin.ModelAdmin):
 # ---
 # --- END NEW ---
 # ---
+
+
+# ---
+# --- *** NEW: Register new rule models *** ---
+# ---
+@admin.register(EveDogmaAttribute)
+class EveDogmaAttributeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'attribute_id', 'unit_name')
+    search_fields = ('name', 'attribute_id')
+    list_filter = ('unit_name',)
+
+@admin.register(ItemComparisonRule)
+class ItemComparisonRuleAdmin(admin.ModelAdmin):
+    list_display = ('group', 'attribute', 'higher_is_better')
+    list_filter = ('group__name', 'higher_is_better')
+    # Add autocomplete for easier rule creation
+    autocomplete_fields = ('group', 'attribute')
+# ---
+# --- *** END NEW *** ---
+# ---
+
+# --- *** NEW: Register EveTypeDogmaAttribute (read-only) *** ---
+@admin.register(EveTypeDogmaAttribute)
+class EveTypeDogmaAttributeAdmin(admin.ModelAdmin):
+    list_display = ('type', 'attribute', 'value')
+    search_fields = ('type__name', 'attribute__name')
+    list_filter = ('attribute__name',)
+    # Make read-only
+    readonly_fields = ('type', 'attribute', 'value')
+
+    def has_add_permission(self, request):
+        return False
+    def has_change_permission(self, request, obj=None):
+        return False
+    def has_delete_permission(self, request, obj=None):
+        return False
+# --- *** END NEW *** ---

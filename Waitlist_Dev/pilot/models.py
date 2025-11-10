@@ -2,46 +2,68 @@ from django.db import models
 # --- REMOVED: from waitlist.models import EveCharacter ---
 import json
 
-# --- NEW MODEL: EveGroup ---
-# This will store our "Skill Categories" (e.g., Gunnery, Spaceship Command)
-# and also item groups (e.g., Projectile Ammo, Battleship)
-class EveGroup(models.Model):
-    group_id = models.IntegerField(primary_key=True, unique=True)
-    name = models.CharField(max_length=255)
-    # --- NEW FIELD ---
-    # We will store the category ID (e.g., 6 for "Ship", 7 for "Module", 16 for "Skill")
-    category_id = models.IntegerField(null=True, blank=True)
-    # --- END NEW FIELD ---
+# --- *** NEW MODEL: EveCategory *** ---
+# From SDE: invCategories.csv
+class EveCategory(models.Model):
+    category_id = models.IntegerField(primary_key=True, unique=True)
+    name = models.CharField(max_length=255, db_index=True)
+    icon_id = models.IntegerField(null=True, blank=True)
+    published = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name
 
-# --- NEW MODEL: EveType ---
-# This will store our "Skill Types" (e.g., Small Autocannon)
-# and also item types (e.g., Vargur, 1400mm Howitzer II)
+# --- *** UPDATED MODEL: EveGroup *** ---
+# From SDE: invGroups.csv
+class EveGroup(models.Model):
+    group_id = models.IntegerField(primary_key=True, unique=True)
+    name = models.CharField(max_length=255, db_index=True)
+    
+    # --- *** MODIFIED: This is now a ForeignKey *** ---
+    category = models.ForeignKey(
+        EveCategory, 
+        on_delete=models.CASCADE, 
+        related_name="groups",
+        null=True, # Allow null
+        blank=True
+    )
+    # --- *** END MODIFICATION *** ---
+    
+    icon_id = models.IntegerField(null=True, blank=True)
+    published = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+# --- *** UPDATED MODEL: EveType *** ---
+# From SDE: invTypes.csv
 class EveType(models.Model):
     type_id = models.IntegerField(primary_key=True, unique=True)
-    name = models.CharField(max_length=255)
-    group = models.ForeignKey(EveGroup, on_delete=models.CASCADE, related_name="types")
+    name = models.CharField(max_length=255, db_index=True)
+    group = models.ForeignKey(
+        EveGroup, 
+        on_delete=models.CASCADE, 
+        related_name="types",
+        null=True, # Allow null
+        blank=True
+    )
     
-    # --- ADDED THIS FIELD ---
-    slot = models.IntegerField(null=True, blank=True, help_text="Implant slot (if applicable)")
+    description = models.TextField(blank=True, null=True)
+    mass = models.FloatField(null=True, blank=True)
+    volume = models.FloatField(null=True, blank=True)
+    capacity = models.FloatField(null=True, blank=True)
+    icon_id = models.IntegerField(null=True, blank=True)
+    published = models.BooleanField(default=True)
     
-    # --- NEW: Added icon_url field ---
-    icon_url = models.CharField(max_length=255, null=True, blank=True, help_text="URL for the item's icon")
-    # --- END ADDITION ---
-
-    # ---
-    # --- NEW FIELDS FOR SHIP SLOTS (Dogma Attrs 12, 13, 14, 1137, 1367) ---
-    # ---
-    hi_slots = models.IntegerField(null=True, blank=True, help_text="Ship: High slots")
-    med_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Medium slots")
-    low_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Low slots")
-    rig_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Rig slots")
-    subsystem_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Subsystem slots")
-    # ---
-    # --- NEW FIELD FOR MODULE/ITEM SLOT TYPE (Dogma Attrs 125, 126, 127, 1154, 1373) ---
-    # ---
+    # --- *** MODIFIED: Kept these fields, will be populated by SDE importer *** ---
+    # These come from dgmTypeAttributes.csv
+    hi_slots = models.IntegerField(null=True, blank=True, help_text="Ship: High slots (Dogma Attr 14)")
+    med_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Medium slots (Dogma Attr 13)")
+    low_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Low slots (Dogma Attr 12)")
+    rig_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Rig slots (Dogma Attr 1137)")
+    subsystem_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Subsystem slots (Dogma Attr 1367)")
+    
+    # This comes from dgmTypeEffects.csv
     slot_type = models.CharField(
         max_length=10, 
         null=True, 
@@ -49,14 +71,22 @@ class EveType(models.Model):
         db_index=True, 
         help_text="Module: 'high', 'mid', 'low', 'rig', 'subsystem', or 'drone'"
     )
-    # ---
-    # --- END NEW FIELDS
-    # ---
-
+    
+    # This comes from dgmTypeAttributes.csv
+    meta_level = models.IntegerField(
+        null=True, 
+        blank=True, 
+        default=0, 
+        help_text="Item meta level (Dogma Attr 633)"
+    )
+    
+    # --- *** REMOVED: attributes_json is no longer needed *** ---
+    # attributes_json = models.TextField(...)
+    # --- *** END REMOVAL *** ---
 
     def __str__(self):
         return self.name
-# --- END NEW MODELS ---
+# --- END UPDATED MODELS ---
 
 
 class PilotSnapshot(models.Model):

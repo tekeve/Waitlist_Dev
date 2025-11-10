@@ -4,315 +4,26 @@ import json
 from collections import Counter
 import requests
 
-from esi.clients import EsiClientProvider
+# --- REMOVED: ESIClientProvider is no longer needed here ---
 from pilot.models import EveType, EveGroup
 # --- MODIFIED: Added imports for moved logic ---
-from .models import ShipFit, DoctrineFit, FitSubstitutionGroup
+from .models import (
+    ShipFit, DoctrineFit, FitSubstitutionGroup,
+    # --- *** NEW: Import new rule/data models *** ---
+    ItemComparisonRule, EveTypeDogmaAttribute
+)
 # --- END MODIFIED ---
 
-# --- HELPER FUNCTIONS (Copied from views.py) ---
-
-def get_or_cache_eve_group(group_id):
-    """
-    Tries to get an EveGroup from the local DB.
-    If not found, fetches from ESI and caches it.
-    
-    --- MODIFIED to use get_or_create to prevent race conditions ---
-    """
-    try:
-        # get_or_create is atomic and prevents the race condition
-        group, created = EveGroup.objects.get_or_create(
-            group_id=group_id,
-            defaults={'name': '...Fetching from ESI...'} # Temporary name
-        )
-        
-        if created:
-            # If we just created it, go update the name from ESI
-            esi = EsiClientProvider()
-            group_data = esi.client.Universe.get_universe_groups_group_id(
-                group_id=group_id
-            ).results()
-            group.name = group_data['name']
-            # --- NEW: Save the category_id ---
-            # ---
-            # --- THIS IS THE FIX: Handle potential stale group cache
-            # ---
-            if group.category_id is None:
-                if 'category_id' in group_data:
-                    group.category_id = group_data['category_id']
-                group.save()
-            # ---
-            # --- END THE FIX
-            # ---
-            
-        # ---
-        # --- THIS IS THE FIX: Check for stale category_id on existing groups
-        # ---
-        elif group.category_id is None:
-             try:
-                esi = EsiClientProvider()
-                group_data = esi.client.Universe.get_universe_groups_group_id(
-                    group_id=group_id
-                ).results()
-                if 'category_id' in group_data:
-                    group.category_id = group_data['category_id']
-                    group.save()
-             except Exception:
-                pass # Ignore ESI failures on this check
-        # ---
-        # --- END THE FIX
-        # ---
-            
-        return group
-    except Exception as e:
-        # If ESI fails or DB fails, return None
-        print(f"Error in get_or_cache_eve_group({group_id}): {e}")
-        return None
-
 # ---
-# --- NEW HELPER: Parse Dogma Attributes
+# --- *** REMOVED ALL ESI-CACHING FUNCTIONS *** ---
+# - get_or_cache_eve_group
+# - _get_dogma_value
+# - _get_dogma_effects
+# - get_or_cache_eve_type
+# - get_or_cache_eve_type_by_id
+# They are all replaced by the SDE importer.
 # ---
-def _get_dogma_value(dogma_attributes, attribute_id):
-    """Safely find a dogma attribute value from the list."""
-    if not dogma_attributes:
-        return None
-    for attr in dogma_attributes:
-        if attr['attribute_id'] == attribute_id:
-            return attr.get('value')
-    return None
-
-def _get_dogma_effects(dogma_effects_list):
-    """Safely extracts effect IDs from the dogma_effects list."""
-    if not dogma_effects_list:
-        return set()
-    return {effect.get('effect_id') for effect in dogma_effects_list}
-# ---
-# --- END NEW HELPER
-# ---
-
-def get_or_cache_eve_type(item_name):
-    """
-    Tries to get an EveType (ship, module, ammo) from the local DB by name.
-    If not found, searches ESI, fetches details, and caches it.
-    
-    --- MODIFIED to use get_or_create and cache slot info ---
-    """
-    try:
-        # First, try to get by name. This is fast and hits the cache.
-        return EveType.objects.get(name__iexact=item_name)
-    except EveType.DoesNotExist:
-        try:
-            # Not found by name. Go to ESI to get the ID.
-            esi = EsiClientProvider()
-            id_results = esi.client.Universe.post_universe_ids(
-                names=[item_name] # Send a list with just our item name
-            ).results()
-            
-            # 2. Check the results
-            type_id = None
-            if id_results.get('inventory_types'):
-                type_id = id_results['inventory_types'][0]['id']
-            elif id_results.get('categories'):
-                type_id = id_results['categories'][0]['id']
-            elif id_results.get('groups'):
-                type_id = id_results['groups'][0]['id']
-                
-            if not type_id:
-                return None # ESI couldn't find it
-            
-            # --- 3. NEW: Use get_or_create with the ID ---
-            # This prevents a race condition if two items are processed
-            # before the first one is saved.
-            type_obj, created = EveType.objects.get_or_create(
-                type_id=type_id,
-                # We must provide defaults for all required fields
-                defaults={
-                    'name': '...Fetching from ESI...',
-                    # We need a *valid* group, so we create a placeholder if we must
-                    'group': get_or_cache_eve_group(0) or EveGroup.objects.get_or_create(group_id=0, defaults={'name': 'Unknown'})[0]
-                }
-            )
-
-            if created:
-                # If we just created it, fill in the correct details
-                type_data = esi.client.Universe.get_universe_types_type_id(
-                    type_id=type_id
-                ).results()
-                
-                # Get the *actual* group
-                group = get_or_cache_eve_group(type_data['group_id'])
-                if not group:
-                    # If group fetch fails, delete the placeholder type and fail
-                    type_obj.delete()
-                    return None
-                    
-                # 5. Get slot (if any)
-                slot = None
-                # ---
-                # --- MODIFIED: Cache all slot and module info ---
-                # ---
-                dogma_attrs = type_data.get('dogma_attributes', [])
-                dogma_effects_list = type_data.get('dogma_effects', []) # --- ADDED ---
-                
-                # 5a. Get implant slot (if applicable)
-                slot = _get_dogma_value(dogma_attrs, 300) # 300 is 'implantSlot'
-                
-                # 5b. Get ship slot counts (if applicable)
-                hi_slots = _get_dogma_value(dogma_attrs, 14)
-                med_slots = _get_dogma_value(dogma_attrs, 13)
-                low_slots = _get_dogma_value(dogma_attrs, 12)
-                rig_slots = _get_dogma_value(dogma_attrs, 1137)
-                subsystem_slots = _get_dogma_value(dogma_attrs, 1367)
-
-                # 5c. Get module slot type (if applicable)
-                # ---
-                # --- THIS IS THE FIX ---
-                # ---
-                slot_type = None
-                effect_ids = _get_dogma_effects(dogma_effects_list) # Get the set of effect IDs
-
-                if group.category_id == 18: # Category 18 is Drone
-                    slot_type = 'drone'
-                elif 12 in effect_ids: # effectID 12 = hiPower
-                    slot_type = 'high'
-                elif 13 in effect_ids: # effectID 13 = medPower
-                    slot_type = 'mid'
-                elif 11 in effect_ids: # effectID 11 = loPower
-                    slot_type = 'low'
-                elif 2663 in effect_ids: # effectID 2663 = rigSlot
-                    slot_type = 'rig'
-                elif 3772 in effect_ids: # effectID 3772 = subSystem
-                    slot_type = 'subsystem'
-                # ---
-                # --- END THE FIX ---
-                # ---
-                
-                # 6. Construct the icon URL
-                icon_url = f"https://images.evetech.net/types/{type_id}/icon?size=32"
-
-                # 7. Update the placeholder with the real data
-                type_obj.name = type_data['name'] # Use canonical name
-                type_obj.group = group
-                type_obj.slot = slot
-                type_obj.icon_url = icon_url
-                
-                # --- NEW: Save slot data ---
-                type_obj.hi_slots = hi_slots
-                type_obj.med_slots = med_slots
-                type_obj.low_slots = low_slots
-                type_obj.rig_slots = rig_slots
-                type_obj.subsystem_slots = subsystem_slots
-                type_obj.slot_type = slot_type
-                # --- END NEW ---
-                
-                type_obj.save()
-            
-            return type_obj
-            
-        except Exception as e:
-            # ESI call or DB save failed
-            print(f"Error in get_or_cache_eve_type({item_name}): {e}")
-            return None
-# --- END MODIFIED FUNCTIONS ---
-
-
-# ---
-# --- NEW HELPER FUNCTION: Get or Cache by ID ---
-# ---
-def get_or_cache_eve_type_by_id(type_id):
-    """
-    Tries to get an EveType from the local DB by its ID.
-    If not found, fetches from ESI and caches it.
-    This is used by the backfill script.
-    
-    --- MODIFIED to cache slot info ---
-    """
-    if not type_id:
-        return None
-        
-    try:
-        # 1. Try to get it from the DB first.
-        return EveType.objects.get(type_id=type_id)
-    except EveType.DoesNotExist:
-        try:
-            # 2. Not found, so fetch from ESI
-            esi = EsiClientProvider()
-            type_data = esi.client.Universe.get_universe_types_type_id(
-                type_id=type_id
-            ).results()
-            
-            # 3. Get or cache its group (which also caches the category_id)
-            group = get_or_cache_eve_group(type_data['group_id'])
-            if not group:
-                # This should be rare, but if group fetch fails, we can't proceed
-                raise Exception(f"Failed to fetch group {type_data['group_id']} for type {type_id}")
-                
-            # ---
-            # --- MODIFIED: Cache all slot and module info ---
-            # ---
-            dogma_attrs = type_data.get('dogma_attributes', [])
-            dogma_effects_list = type_data.get('dogma_effects', []) # --- ADDED ---
-            
-            # 4a. Get implant slot (if applicable)
-            slot = _get_dogma_value(dogma_attrs, 300) # 300 is 'implantSlot'
-            
-            # 4b. Get ship slot counts (if applicable)
-            hi_slots = _get_dogma_value(dogma_attrs, 14)
-            med_slots = _get_dogma_value(dogma_attrs, 13)
-            low_slots = _get_dogma_value(dogma_attrs, 12)
-            rig_slots = _get_dogma_value(dogma_attrs, 1137)
-            subsystem_slots = _get_dogma_value(dogma_attrs, 1367)
-
-            # 4c. Get module slot type (if applicable)
-            # ---
-            # --- THIS IS THE FIX ---
-            # ---
-            slot_type = None
-            effect_ids = _get_dogma_effects(dogma_effects_list) # Get the set of effect IDs
-
-            if group.category_id == 18: # Category 18 is Drone
-                slot_type = 'drone'
-            elif 12 in effect_ids: # effectID 12 = hiPower
-                slot_type = 'high'
-            elif 13 in effect_ids: # effectID 13 = medPower
-                slot_type = 'mid'
-            elif 11 in effect_ids: # effectID 11 = loPower
-                slot_type = 'low'
-            elif 2663 in effect_ids: # effectID 2663 = rigSlot
-                slot_type = 'rig'
-            elif 3772 in effect_ids: # effectID 3772 = subSystem
-                slot_type = 'subsystem'
-            # ---
-            # --- END THE FIX ---
-            # ---
-            
-            # 5. Construct the icon URL
-            icon_url = f"https://images.evetech.net/types/{type_id}/icon?size=32"
-
-            # 6. Create the new EveType object
-            new_type = EveType.objects.create(
-                type_id=type_id,
-                name=type_data['name'],
-                group=group,
-                slot=slot,
-                icon_url=icon_url,
-                # --- NEW: Save slot data ---
-                hi_slots=hi_slots,
-                med_slots=med_slots,
-                low_slots=low_slots,
-                rig_slots=rig_slots,
-                subsystem_slots=subsystem_slots,
-                slot_type=slot_type
-                # --- END NEW ---
-            )
-            return new_type
-            
-        except Exception as e:
-            # ESI call or DB save failed
-            print(f"Error in get_or_cache_eve_type_by_id({type_id}): {e}")
-            return None
-# ---
-# --- END NEW HELPER FUNCTION
+# --- *** END REMOVAL ***
 # ---
 
 
@@ -324,8 +35,7 @@ def parse_eft_fit(raw_fit_original: str):
     Parses a raw EFT fit string and returns the ship_type object,
     a list of dicts for the JSON blob, and a Counter summary.
     
-    This parser now respects the EFT block order (high, mid, low, etc.)
-    and uses blank lines as separators.
+    --- *** MODIFIED: This now queries the local SDE (EveType table) *** ---
     """
     # 1. Minimal sanitization
     raw_fit_no_nbsp = raw_fit_original.replace(u'\xa0', u' ')
@@ -358,11 +68,11 @@ def parse_eft_fit(raw_fit_original: str):
     tag_stripper = re.compile(r'<[^>]+>')
     ship_name = tag_stripper.sub('', ship_name_raw).strip()
 
-    # 3. Get the Type ID for the ship (this caches it)
-    ship_type = get_or_cache_eve_type(ship_name)
-    
-    if not ship_type:
-        raise ValueError(f"Ship hull '{ship_name}' could not be found in ESI. Check spelling.")
+    # 3. Get the Type ID for the ship (from our SDE)
+    try:
+        ship_type = EveType.objects.select_related('group').get(name__iexact=ship_name)
+    except EveType.DoesNotExist:
+        raise ValueError(f"Ship hull '{ship_name}' could not be found in local SDE. Is SDE imported?")
     
     # 4. Parse all items in the fit
     parsed_fit_list = [] # For storing JSON
@@ -373,7 +83,7 @@ def parse_eft_fit(raw_fit_original: str):
         "raw_line": header_line,
         "type_id": ship_type.type_id,
         "name": ship_type.name,
-        "icon_url": ship_type.icon_url,
+        "icon_url": f"https://images.evetech.net/types/{ship_type.type_id}/icon?size=32", # Re-generate URL
         "quantity": 1,
         "final_slot": "ship" # Special slot for the hull
     })
@@ -381,21 +91,13 @@ def parse_eft_fit(raw_fit_original: str):
 
     item_regex = re.compile(r'^(.*?)(?: x(\d+))?$')
     
-    # ---
-    # --- THIS IS THE FIX: New state machine logic based on EFT block order
-    # ---
     # This defines the order of fittable sections in an EFT block
     EFT_SECTION_ORDER = ['high', 'mid', 'low', 'rig', 'subsystem', 'drone']
     
-    # This tracks the "section" we are currently in by its index in the list
     current_section_index = 0 # 0 = 'high', 1 = 'mid', ..., 5 = 'drone'
     
     # T3Cs are special
     is_t3c = (ship_type.subsystem_slots or 0) > 0
-    
-    # ---
-    # --- END THE FIX
-    # ---
 
     for line in lines_raw[first_line_index + 1:]:
         stripped_line = line.strip()
@@ -404,24 +106,15 @@ def parse_eft_fit(raw_fit_original: str):
         quantity = 0
         
         if not stripped_line:
-            # ---
-            # --- THIS IS THE FIX: Blank line advances the state
-            # ---
             final_slot = 'BLANK_LINE'
-            
             if current_section_index < len(EFT_SECTION_ORDER):
-                # Advance to the next fittable section
                 current_section_index += 1
-            # If we're at index 6 (cargo) or higher, we just stay in cargo
             
             parsed_fit_list.append({
                 "raw_line": "", "type_id": None, "name": "BLANK_LINE",
                 "icon_url": None, "quantity": 0, "final_slot": final_slot
             })
             continue
-            # ---
-            # --- END THE FIX
-            # ---
 
         if stripped_line.startswith('[') and stripped_line.endswith(']'):
             # This is an empty slot, e.g., [Empty Low Slot]
@@ -434,21 +127,17 @@ def parse_eft_fit(raw_fit_original: str):
             else: item_slot_type = None 
             
             if item_slot_type:
-                # This is a fittable empty slot
                 final_slot = item_slot_type
-                
-                # Check if this empty slot is "out of order"
                 try:
                     item_section_index = EFT_SECTION_ORDER.index(item_slot_type)
                     if item_section_index < current_section_index:
-                        final_slot = 'cargo' # This is an empty slot from a previous section
+                        final_slot = 'cargo'
                     else:
-                        # It's from the current or a future section, advance state
                         current_section_index = item_section_index
                 except ValueError:
-                    final_slot = 'cargo' # Not a fittable slot type
+                    final_slot = 'cargo'
             else:
-                final_slot = 'cargo' # Unknown empty slot
+                final_slot = 'cargo'
             
             parsed_fit_list.append({
                 "raw_line": stripped_line, "type_id": None, "name": stripped_line,
@@ -459,7 +148,6 @@ def parse_eft_fit(raw_fit_original: str):
         # This is an item
         match = item_regex.match(stripped_line)
         if not match:
-            # Unknown line
             parsed_fit_list.append({
                 "raw_line": stripped_line, "type_id": None, "name": f"Unknown line: {stripped_line}",
                 "icon_url": None, "quantity": 0, "final_slot": 'cargo'
@@ -470,83 +158,51 @@ def parse_eft_fit(raw_fit_original: str):
         quantity = int(match.group(2)) if match.group(2) else 1
         
         if not item_name:
-            continue # Skip lines that were just " x5"
+            continue
 
-        # Get or cache the item
-        item_type = get_or_cache_eve_type(item_name)
+        # Get item from our SDE
+        try:
+            item_type = EveType.objects.get(name__iexact=item_name)
+        except EveType.DoesNotExist:
+             raise ValueError(f"Unknown item in fit: '{item_name}'. Is SDE imported?")
         
         if item_type:
             item_slot_type = item_type.slot_type # e.g., 'high', 'mid', 'drone', None
             
             if item_slot_type is None:
-                # Ammo, paste, etc. This is always cargo.
                 final_slot = 'cargo'
-                
-            # ---
-            # --- THIS IS THE FIX: Check item_slot_type against current_section
-            # ---
             elif item_slot_type in EFT_SECTION_ORDER:
-                # This is a fittable module
                 try:
                     item_section_index = EFT_SECTION_ORDER.index(item_slot_type)
                     
                     if item_section_index == current_section_index:
-                        # Item matches the current section (e.g., 'high' in 'high')
                         final_slot = item_slot_type
-                    
                     elif is_t3c and item_slot_type == 'subsystem' and current_section_index < 5:
-                        # T3C Subsystems are a special case. They can appear
-                        # in high, mid, or low sections.
                         final_slot = 'subsystem'
-
                     elif item_section_index > current_section_index:
-                        # This item is from a *future* section
-                        # (e.g., a 'mid' item listed in the 'high' block)
-                        # We must advance our state to this new section.
                         current_section_index = item_section_index
                         final_slot = item_slot_type
-                        
                     else:
-                        # item_section_index < current_section_index
-                        # This item is from a *previous* section
-                        # (e.g., a 'high' item listed in the 'mid' block)
-                        # This must be a spare in the cargo.
                         final_slot = 'cargo'
-                        
                 except ValueError:
-                    # Should not happen as we checked `in EFT_SECTION_ORDER`
                     final_slot = 'cargo'
-            
             else:
-                # Unknown slot_type
                 final_slot = 'cargo'
-            # ---
-            # --- END THE FIX
-            # ---
 
-            # Add to our JSON list for the modal
             parsed_fit_list.append({
                 "raw_line": stripped_line,
                 "type_id": item_type.type_id,
                 "name": item_type.name,
-                "icon_url": item_type.icon_url,
+                "icon_url": f"https://images.evetech.net/types/{item_type.type_id}/icon?size=32",
                 "quantity": quantity,
-                "final_slot": final_slot # Save the calculated slot
+                "final_slot": final_slot
             })
-            # Add to our summary dict for approval
             fit_summary_counter[item_type.type_id] += quantity
         else:
-            # Could not find this item in ESI
-            parsed_fit_list.append({
-                "raw_line": stripped_line, "type_id": None, "name": f"Unknown Item: {item_name}",
-                "icon_url": None, "quantity": quantity, "final_slot": 'cargo'
-            })
-            raise ValueError(f"Unknown item in fit: '{item_name}'. Check spelling.")
+            # This case is now handled by the try/except block
+            pass
 
     return ship_type, parsed_fit_list, fit_summary_counter
-# ---
-# --- END THE FIX
-# ---
 
 
 # --- NEW PARSING FUNCTION FOR ADMIN ---
@@ -558,7 +214,7 @@ def parse_eft_to_full_doctrine_data(raw_fit_original: str):
     parsed_fit_list as a JSON string.
     Used by the DoctrineFit admin form.
     
-    --- MODIFIED: This now calls the centralized parser ---
+    --- MODIFIED: This now calls the centralized SDE parser ---
     """
     try:
         ship_type, parsed_fit_list, fit_summary_counter = parse_eft_fit(raw_fit_original)
@@ -570,98 +226,208 @@ def parse_eft_to_full_doctrine_data(raw_fit_original: str):
 # --- END MODIFIED FUNCTION ---
 
 
+# ---
+# --- *** NEW HELPER: Attribute value getter *** ---
+# ---
+def _get_attribute_value_from_item(item_type: EveType, attribute_id: int) -> float:
+    """
+    Safely gets a single attribute value from an EveType's cached attribute dict.
+    Returns 0 if the attribute is not found.
+    
+    This helper assumes a cache `_attribute_cache` is pre-populated
+    on the EveType object by the calling function.
+    """
+    if not hasattr(item_type, '_attribute_cache'):
+        # This is a fallback, but should not be hit in production
+        try:
+            attr_obj = EveTypeDogmaAttribute.objects.get(type=item_type, attribute_id=attribute_id)
+            return attr_obj.value or 0
+        except EveTypeDogmaAttribute.DoesNotExist:
+            return 0
+                
+    # Return the value from the pre-populated cache
+    return item_type._attribute_cache.get(attribute_id, 0)
+# ---
+# --- *** END NEW HELPER ***
+# ---
+
+
 # --- MOVED FROM views.py: AUTO-APPROVAL HELPER ---
 def check_fit_against_doctrines(ship_type_id, submitted_fit_summary: dict):
     """
     Compares a submitted fit summary against all matching doctrines.
     
-    --- MODIFIED: Now uses FitSubstitutionGroup ---
+    --- *** MODIFIED: Now uses SDE-backed ItemComparisonRule logic *** ---
     """
     if not ship_type_id:
         return None, 'PENDING', ShipFit.FitCategory.NONE
 
-    # --- 1. Build the substitution map ---
-    # This map will look like:
-    # { 'base_item_id_str': {'base_item_id_str', 'sub_1_id_str', 'sub_2_id_str'}, ... }
-    sub_groups = FitSubstitutionGroup.objects.prefetch_related('substitutes').all()
-    sub_map = {}
-    for group in sub_groups:
-        allowed_ids = {str(sub.type_id) for sub in group.substitutes.all()}
-        allowed_ids.add(str(group.base_item_id)) # The base item is always allowed
-        
-        # Map the base item ID to this set of allowed IDs
-        sub_map[str(group.base_item_id)] = allowed_ids
-
-
-    # --- 2. Get doctrines and submitted fit ---
+    # --- 1. Get all doctrines for this hull ---
     matching_doctrines = DoctrineFit.objects.filter(ship_type__type_id=ship_type_id)
-    
     if not matching_doctrines.exists():
         return None, 'PENDING', ShipFit.FitCategory.NONE # No doctrines for this hull
 
-    # Make a Counter of the submitted fit (with string keys)
+    # --- 2. Build the manual substitution map ---
+    # { 'base_item_id_str': {set of allowed_ids_int} }
+    sub_groups = FitSubstitutionGroup.objects.prefetch_related('substitutes').all()
+    sub_map = {}
+    for group in sub_groups:
+        base_id_str = str(group.base_item_id)
+        allowed_ids = {sub.type_id for sub in group.substitutes.all()}
+        allowed_ids.add(group.base_item_id) # The base item is always allowed
+        sub_map[base_id_str] = allowed_ids
+
+
+    # --- 3. Get all EveType data for ALL items in ONE query ---
+    all_submitted_ids = {int(k) for k in submitted_fit_summary.keys()}
+    all_doctrine_item_ids = set()
+    for doctrine in matching_doctrines:
+        all_doctrine_item_ids.update(int(k) for k in doctrine.get_fit_items().keys())
+
+    all_type_ids = all_submitted_ids | all_doctrine_item_ids
+    type_map = {
+        t.type_id: t 
+        for t in EveType.objects.filter(type_id__in=all_type_ids).select_related('group', 'group__category')
+    }
+    
+    # --- *** NEW: Pre-cache all attributes for these types *** ---
+    # This is a massive optimization. We fetch all dogma attributes for all
+    # items in one query and build a dict-of-dicts for fast lookup.
+    # { type_id: { attr_id: value, ... }, ... }
+    attribute_values_by_type = {}
+    dogma_attrs = EveTypeDogmaAttribute.objects.filter(type_id__in=all_type_ids).values('type_id', 'attribute_id', 'value')
+    
+    for attr in dogma_attrs:
+        type_id = attr['type_id']
+        if type_id not in attribute_values_by_type:
+            attribute_values_by_type[type_id] = {}
+        attribute_values_by_type[type_id][attr['attribute_id']] = attr['value'] or 0
+
+    # Now, attach this cache to each EveType object
+    for type_id, item_type in type_map.items():
+        item_type._attribute_cache = attribute_values_by_type.get(type_id, {})
+    # --- *** END NEW *** ---
+
+    # --- *** NEW: Get all ItemComparisonRules in one query *** ---
+    all_rules = ItemComparisonRule.objects.select_related('attribute').all()
+    rules_by_group = {}
+    for rule in all_rules:
+        if rule.group_id not in rules_by_group:
+            rules_by_group[rule.group_id] = []
+        rules_by_group[rule.group_id].append(rule)
+    # --- *** END NEW *** ---
+
+    # --- 4. Loop through each doctrine and check for a match ---
     submitted_items_to_use = Counter({str(k): v for k, v in submitted_fit_summary.items()})
 
-    # --- 3. Loop through each doctrine and check for a match ---
     for doctrine in matching_doctrines:
-        # Get the doctrine's "shopping list"
         doctrine_items_to_match = Counter(doctrine.get_fit_items())
-        
-        # Make a *copy* of the submitted fit to "use up" items
         submitted_items_snapshot = submitted_items_to_use.copy()
-        
         fit_matches_doctrine = True
 
-        # --- 4. Check every item in the doctrine's shopping list ---
-        for doctrine_type_id, required_quantity in doctrine_items_to_match.items():
+        # --- 5. Check every item in the doctrine's shopping list ---
+        for doctrine_type_id_str, required_quantity in doctrine_items_to_match.items():
             
-            # Get the set of allowed IDs for this doctrine "slot"
-            # Use sub_map.get() to provide a default (just the item itself)
-            allowed_ids_for_slot = sub_map.get(doctrine_type_id, {doctrine_type_id})
+            doctrine_type_id = int(doctrine_type_id_str)
+            doctrine_item_type = type_map.get(doctrine_type_id)
+
+            if not doctrine_item_type or not doctrine_item_type.group:
+                fit_matches_doctrine = False
+                break 
+
+            # --- 5a. Build the list of all allowed items for this "slot" ---
+            allowed_ids_for_slot = {doctrine_type_id}
+
+            # 1. Get Manual Substitutions
+            if doctrine_type_id_str in sub_map:
+                allowed_ids_for_slot.update(sub_map[doctrine_type_id_str])
+
+            # --- *** MODIFICATION: Use new database-driven check *** ---
+            # 2. Get Automatic "Equal or Better" Substitutions
             
+            comparison_rules = rules_by_group.get(doctrine_item_type.group_id, [])
+
+            for submitted_id_str, qty in submitted_items_snapshot.items():
+                submitted_item_id = int(submitted_id_str)
+                
+                if submitted_item_id in allowed_ids_for_slot:
+                    continue 
+
+                submitted_item_type = type_map.get(submitted_item_id)
+                
+                if not submitted_item_type or not submitted_item_type.group:
+                    continue
+                
+                # --- Run the "Equal or Better" check ---
+                if (submitted_item_type.group_id == doctrine_item_type.group_id and
+                    submitted_item_type.group.category_id == doctrine_item_type.group.category_id):
+                    
+                    if not comparison_rules:
+                        continue 
+                        
+                    is_equal_or_better = True
+                    for rule in comparison_rules:
+                        # --- *** Use the new helper that reads from the cache *** ---
+                        doctrine_val = _get_attribute_value_from_item(doctrine_item_type, rule.attribute.attribute_id)
+                        submitted_val = _get_attribute_value_from_item(submitted_item_type, rule.attribute.attribute_id)
+                        
+                        if rule.higher_is_better:
+                            if submitted_val < doctrine_val:
+                                is_equal_or_better = False
+                                break 
+                        else:
+                            if submitted_val > doctrine_val:
+                                is_equal_or_better = False
+                                break 
+                    
+                    if is_equal_or_better:
+                        allowed_ids_for_slot.add(submitted_item_id)
+            # --- *** END MODIFICATION *** ---
+
+            # --- 5b. Consume items from the snapshot ---
             found_quantity = 0
             for allowed_id in allowed_ids_for_slot:
-                if allowed_id in submitted_items_snapshot:
-                    # Get how many of this allowed item the user has
-                    qty = submitted_items_snapshot[allowed_id]
+                allowed_id_str = str(allowed_id)
+                
+                if allowed_id_str in submitted_items_snapshot:
+                    available_qty = submitted_items_snapshot[allowed_id_str]
+                    needed_qty = required_quantity - found_quantity
+                    qty_to_use = min(available_qty, needed_qty)
                     
-                    # Add to our found quantity
-                    found_quantity += qty
+                    found_quantity += qty_to_use
+                    submitted_items_snapshot[allowed_id_str] -= qty_to_use
                     
-                    # "Use up" these items so they can't match another slot
-                    del submitted_items_snapshot[allowed_id]
+                    if submitted_items_snapshot[allowed_id_str] == 0:
+                        del submitted_items_snapshot[allowed_id_str]
+                
+                if found_quantity == required_quantity:
+                    break 
             
-            # Did we find enough items (including substitutes) for this slot?
+            # --- 5c. Check if we found enough ---
             if found_quantity < required_quantity:
                 fit_matches_doctrine = False
-                break # This doctrine fails, stop checking its items
+                break 
 
         if not fit_matches_doctrine:
-            continue # This doctrine failed, try the next one
+            continue 
 
-        # --- 5. Check for extra, un-used items ---
-        # We matched all required items. Now, check for extras.
-        # Remove the hull, which is *expected* to be in both.
-        if str(ship_type_id) in submitted_items_snapshot:
-            # Check if they fit *more* hulls than required
-            if submitted_items_snapshot[str(ship_type_id)] > doctrine_items_to_match[str(ship_type_id)]:
-                 fit_matches_doctrine = False # e.g., fit 2 Vargurs?
-            del submitted_items_snapshot[str(ship_type_id)]
+        # --- 6. Check for extra, un-used items ---
+        ship_type_id_str = str(ship_type_id)
+        if ship_type_id_str in submitted_items_snapshot:
+            if submitted_items_snapshot[ship_type_id_str] > doctrine_items_to_match.get(ship_type_id_str, 0):
+                 fit_matches_doctrine = False
+            del submitted_items_snapshot[ship_type_id_str]
         
-        # Check if any items are "left over"
         if len(submitted_items_snapshot) > 0:
-            # User has extra modules not specified in the doctrine.
             fit_matches_doctrine = False
-            continue # This doctrine fails, try the next one
+            continue 
 
-        # --- 6. Perfect Match! ---
-        # If we get here, fit_matches_doctrine is True AND there are no extra items.
-        # This is a perfect match (with substitutions).
+        # --- 7. Perfect Match! ---
         return doctrine, 'APPROVED', doctrine.category
 
     # Looped through all doctrines, no perfect match found.
     return None, 'PENDING', ShipFit.FitCategory.NONE
-# --- END MOVED HELPER ---
+# --- END MODIFIED HELPER ---
 
 
 # --- This is the original function, left as a placeholder ---

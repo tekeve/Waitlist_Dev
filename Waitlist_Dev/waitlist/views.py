@@ -6,7 +6,9 @@ from django.contrib import messages
 # --- MODIFIED: Import new models ---
 from .models import (
     EveCharacter, ShipFit, Fleet, FleetWaitlist, DoctrineFit,
-    FitSubstitutionGroup, FleetWing, FleetSquad
+    FitSubstitutionGroup, FleetWing, FleetSquad,
+    # --- *** NEW: Import new rule/data models *** ---
+    ItemComparisonRule, EveTypeDogmaAttribute
 )
 # --- END MODIFIED ---
 # --- MODIFIED: Import EveGroup as well ---
@@ -292,7 +294,7 @@ def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
         item_obj = {
             "type_id": type_id,
             "name": item.get('name', 'Unknown'),
-            "icon_url": item.get('icon_url'),
+            "icon_url": item.get('icon_url'), # <-- Get icon_url from the parsed JSON
             "quantity": item.get('quantity', 1),
             "raw_line": item.get('raw_line', item.get('name', 'Unknown')),
             # An item is "empty" if it's a fittable slot and has no type_id
@@ -302,7 +304,9 @@ def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
         if item_type:
             # Overwrite with canonical data from DB
             item_obj['name'] = item_type.name
-            item_obj['icon_url'] = item_type.icon_url
+            # --- *** THIS IS THE FIX: This line is removed *** ---
+            # item_obj['icon_url'] = item_type.icon_url # <-- BUG! This field no longer exists.
+            # --- *** END THE FIX *** ---
 
         if final_slot == 'BLANK_LINE':
             # We don't add blank lines to the final display
@@ -373,7 +377,9 @@ def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
         "ship": {
             "type_id": ship_eve_type.type_id,
             "name": ship_eve_type.name,
+            # --- *** THIS IS THE FIX: Build URL from type_id *** ---
             "icon_url": f"https://images.evetech.net/types/{ship_eve_type.type_id}/render?size=128"
+            # --- *** END THE FIX *** ---
         },
         "slots": final_slots,
         "slot_counts": slot_counts,
@@ -381,6 +387,32 @@ def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
     }
 # ---
 # --- END NEW HELPER
+# ---
+
+
+# ---
+# --- *** NEW HELPER: Attribute value getter *** ---
+# ---
+def _get_attribute_value_from_item(item_type: EveType, attribute_id: int) -> float:
+    """
+    Safely gets a single attribute value from an EveType's cached attribute dict.
+    Returns 0 if the attribute is not found.
+    
+    This helper assumes a cache `_attribute_cache` is pre-populated
+    on the EveType object by the calling function.
+    """
+    if not hasattr(item_type, '_attribute_cache'):
+        # This is a fallback, but should not be hit in production
+        try:
+            attr_obj = EveTypeDogmaAttribute.objects.get(type=item_type, attribute_id=attribute_id)
+            return attr_obj.value or 0
+        except EveTypeDogmaAttribute.DoesNotExist:
+            return 0
+                
+    # Return the value from the pre-populated cache
+    return item_type._attribute_cache.get(attribute_id, 0)
+# ---
+# --- *** END NEW HELPER ***
 # ---
 
 
@@ -648,7 +680,14 @@ def api_get_fit_details(request):
         
         # 4a. Get all EveTypes for items in the fit
         item_ids = [item['type_id'] for item in full_fit_list if item.get('type_id')]
-        item_types_map = {t.type_id: t for t in EveType.objects.filter(type_id__in=item_ids)}
+        # --- *** NEW: Add all doctrine items to this map *** ---
+        if doctrine:
+            item_ids.extend(int(k) for k in doctrine.get_fit_items().keys())
+        item_types_map = {
+            t.type_id: t 
+            for t in EveType.objects.filter(type_id__in=set(item_ids)).select_related('group', 'group__category')
+        }
+        # --- *** END NEW *** ---
 
         # 4b. Get doctrine items and substitution maps
         doctrine_items_to_fill = Counter()
@@ -663,12 +702,36 @@ def api_get_fit_details(request):
         
         for group in sub_groups:
             base_id_str = str(group.base_item_id)
-            allowed_ids = {str(sub.type_id) for sub in group.substitutes.all()}
-            allowed_ids.add(base_id_str)
+            allowed_ids = {sub.type_id for sub in group.substitutes.all()}
+            allowed_ids.add(group.base_item_id)
             sub_map[base_id_str] = allowed_ids
-            for sub_id_str in allowed_ids:
-                if sub_id_str != base_id_str:
-                    reverse_sub_map[sub_id_str] = base_id_str
+            for sub_id in allowed_ids:
+                if sub_id != group.base_item_id:
+                    reverse_sub_map[str(sub_id)] = base_id_str
+
+        # --- *** NEW: Pre-cache all attributes for these types *** ---
+        attribute_values_by_type = {}
+        dogma_attrs = EveTypeDogmaAttribute.objects.filter(type_id__in=item_types_map.keys()).values('type_id', 'attribute_id', 'value')
+        
+        for attr in dogma_attrs:
+            type_id = attr['type_id']
+            if type_id not in attribute_values_by_type:
+                attribute_values_by_type[type_id] = {}
+            attribute_values_by_type[type_id][attr['attribute_id']] = attr['value'] or 0
+
+        # Now, attach this cache to each EveType object
+        for type_id, item_type in item_types_map.items():
+            item_type._attribute_cache = attribute_values_by_type.get(type_id, {})
+        # --- *** END NEW *** ---
+
+        # --- *** NEW: Get all ItemComparisonRules in one query *** ---
+        all_rules = ItemComparisonRule.objects.select_related('attribute').all()
+        rules_by_group = {}
+        for rule in all_rules:
+            if rule.group_id not in rules_by_group:
+                rules_by_group[rule.group_id] = []
+            rules_by_group[rule.group_id].append(rule)
+        # --- *** END NEW *** ---
 
         # 4c. Create bins to sort items into
         item_bins = {
@@ -695,20 +758,23 @@ def api_get_fit_details(request):
             item_obj = {
                 "type_id": type_id,
                 "name": item.get('name', 'Unknown'),
-                "icon_url": item.get('icon_url'),
+                "icon_url": item.get('icon_url'), # <-- Get icon_url from the parsed JSON
                 "quantity": item.get('quantity', 1),
                 "raw_line": item.get('raw_line', item.get('name', 'Unknown')),
                 # An item is "empty" if it's a fittable slot and has no type_id
                 "is_empty": (final_slot in ['high','mid','low','rig','subsystem'] and not type_id),
                 "status": "doctrine", # Default
                 "potential_matches": [],
-                "substitutes_for": []
+                "substitutes_for": [],
+                "failure_reasons": [], # --- *** NEW: Add failure list *** ---
             }
             
             if item_type:
                 # Overwrite with canonical data from DB
                 item_obj['name'] = item_type.name
-                item_obj['icon_url'] = item_type.icon_url
+                # --- *** THIS IS THE FIX: This line is removed *** ---
+                # item_obj['icon_url'] = item_type.icon_url # <-- BUG! This field no longer exists.
+                # --- *** END THE FIX *** ---
 
             if final_slot == 'BLANK_LINE':
                 # We don't add blank lines to the final display
@@ -736,28 +802,113 @@ def api_get_fit_details(request):
                         doctrine_items_to_fill_copy[item_id_str] -= qty_in_fit
                     
                     elif item_id_str in reverse_sub_map:
-                        # Substitute Match
-                        base_item_id = reverse_sub_map[item_id_str]
-                        if base_item_id in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[base_item_id] > 0:
+                        # Manual Substitute Match
+                        base_item_id = int(reverse_sub_map[item_id_str])
+                        if str(base_item_id) in doctrine_items_to_fill_copy and doctrine_items_to_fill_copy[str(base_item_id)] > 0:
                             item_obj['status'] = 'accepted_sub'
-                            base_type = EveType.objects.get(type_id=base_item_id) # Get sub info
-                            item_obj['substitutes_for'] = [{
-                                "name": base_type.name,
-                                "type_id": base_type.type_id,
-                                "icon_url": base_type.icon_url,
-                                "quantity": doctrine_items_to_fill.get(base_item_id, 0)
-                            }]
-                            doctrine_items_to_fill_copy[base_item_id] -= qty_in_fit
+                            base_type = item_types_map.get(base_item_id) # Get sub info
+                            if base_type:
+                                item_obj['substitutes_for'] = [{
+                                    "name": base_type.name,
+                                    "type_id": base_type.type_id,
+                                    "icon_url": f"https://images.evetech.net/types/{base_type.type_id}/icon?size=32",
+                                    "quantity": doctrine_items_to_fill.get(str(base_item_id), 0)
+                                }]
+                            doctrine_items_to_fill_copy[str(base_item_id)] -= qty_in_fit
                         else:
                             # It's a sub for an item, but not one we need (or we have enough)
                             item_obj['status'] = 'problem'
                     
+                    # --- *** NEW: Automatic "Equal or Better" Check *** ---
+                    elif (item_type and item_type.group_id):
+                        
+                        # Find a doctrine item of the same group that is missing
+                        found_match = False
+                        for doctrine_id_str, missing_qty in doctrine_items_to_fill_copy.items():
+                            if missing_qty <= 0:
+                                continue
+                            
+                            doctrine_item_type = item_types_map.get(int(doctrine_id_str))
+                            if not doctrine_item_type or not doctrine_item_type.group:
+                                continue
+
+                            # Check group and category
+                            if (doctrine_item_type.group_id == item_type.group_id and
+                                doctrine_item_type.group.category_id == item_type.group.category_id):
+                                
+                                # Found a potential match! Now check attributes.
+                                comparison_rules = rules_by_group.get(item_type.group_id, [])
+                                if not comparison_rules:
+                                    continue # No rules, so no auto-sub
+                                
+                                is_equal_or_better = True
+                                failure_reasons = []
+                                for rule in comparison_rules:
+                                    attr_id = rule.attribute.attribute_id
+                                    doctrine_val = _get_attribute_value_from_item(doctrine_item_type, attr_id)
+                                    submitted_val = _get_attribute_value_from_item(item_type, attr_id)
+                                    
+                                    if rule.higher_is_better:
+                                        if submitted_val < doctrine_val:
+                                            is_equal_or_better = False
+                                            # --- *** THIS IS THE FIX *** ---
+                                            failure_reasons.append({
+                                                "attribute_name": rule.attribute.name,
+                                                "doctrine_value": doctrine_val,
+                                                "submitted_value": submitted_val
+                                            })
+                                            # --- *** END THE FIX *** ---
+                                    else: # Lower is better
+                                        if submitted_val > doctrine_val:
+                                            is_equal_or_better = False
+                                            # --- *** THIS IS THE FIX *** ---
+                                            failure_reasons.append({
+                                                "attribute_name": rule.attribute.name,
+                                                "doctrine_value": doctrine_val,
+                                                "submitted_value": submitted_val
+                                            })
+                                            # --- *** END THE FIX *** ---
+                                
+                                if is_equal_or_better:
+                                    item_obj['status'] = 'accepted_sub'
+                                    item_obj['substitutes_for'] = [{
+                                        "name": doctrine_item_type.name,
+                                        "type_id": doctrine_item_type.type_id,
+                                        "icon_url": f"https://images.evetech.net/types/{doctrine_item_type.type_id}/icon?size=32",
+                                        "quantity": doctrine_items_to_fill.get(str(doctrine_item_type.type_id), 0)
+                                    }]
+                                    doctrine_items_to_fill_copy[doctrine_id_str] -= qty_in_fit
+                                    found_match = True
+                                    break # Stop checking other doctrine items
+                                else:
+                                    # It's a problem, and we know why
+                                    item_obj['status'] = 'problem'
+                                    item_obj['failure_reasons'] = failure_reasons # <-- Assign the reasons
+                                    # We also add potential matches for the "Make Sub" button
+                                    item_obj['potential_matches'] = [{
+                                        "name": doctrine_item_type.name,
+                                        "type_id": doctrine_item_type.type_id,
+                                        "icon_url": f"https://images.evetech.net/types/{doctrine_item_type.type_id}/icon?size=32",
+                                        "quantity": doctrine_items_to_fill_copy.get(str(doctrine_item_type.type_id), 0)
+                                    }]
+                                    found_match = True
+                                    break # Stop checking other doctrine items
+                        
+                        if not found_match:
+                             item_obj['status'] = 'problem' # No match found
+                    # --- *** END NEW *** ---
+
                     else:
                         # No match, it's a problem
                         item_obj['status'] = 'problem'
 
-                # Find potential matches for 'problem' items
-                if item_obj['status'] == 'problem' and item_type and item_type.group_id:
+                # Find potential matches for 'problem' items that *weren't* caught by the new logic
+                # (e.g., completely wrong item group)
+                if (item_obj['status'] == 'problem' and 
+                    not item_obj['potential_matches'] and 
+                    not item_obj['failure_reasons'] and 
+                    item_type and item_type.group_id):
+                    
                     missing_ids_in_group = {
                         int(m_id_str) for m_id_str, qty in doctrine_items_to_fill_copy.items() 
                         if qty > 0
@@ -771,7 +922,7 @@ def api_get_fit_details(request):
                             item_obj['potential_matches'].append({
                                 "name": m_type.name, 
                                 "type_id": m_type.type_id, 
-                                "icon_url": m_type.icon_url,
+                                "icon_url": f"https://images.evetech.net/types/{m_type.type_id}/icon?size=32",
                                 "quantity": doctrine_items_to_fill_copy.get(str(m_type.type_id), 0)
                             })
             # --- End Comparison Logic ---
@@ -851,7 +1002,9 @@ def api_get_fit_details(request):
         missing_items = [{
             "type_id": t.type_id, 
             "name": t.name, 
-            "icon_url": t.icon_url, 
+            # --- *** THIS IS THE FIX: Build URL from type_id *** ---
+            "icon_url": f"https://images.evetech.net/types/{t.type_id}/icon?size=32",
+            # --- *** END THE FIX *** ---
             "quantity": doctrine_items_to_fill_copy[str(t.type_id)]
         } for t in missing_types]
 
@@ -864,7 +1017,9 @@ def api_get_fit_details(request):
                 "ship": {
                     "type_id": ship_eve_type.type_id,
                     "name": ship_eve_type.name,
+                    # --- *** THIS IS THE FIX: Build URL from type_id *** ---
                     "icon_url": f"https://images.evetech.net/types/{ship_eve_type.type_id}/render?size=128"
+                    # --- *** END THE FIX *** ---
                 },
                 "slots": final_slots,
                 "slot_counts": slot_counts,
@@ -1607,7 +1762,7 @@ def api_fc_create_default_layout(request):
             
             # 5g. --- CLEANUP SQUADS ---
             # Rename any leftover squads in this wing
-            if squad_index < len(existing.squads):
+            if squad_index < len(existing_squads):
                 for i in range(squad_index, len(existing_squads)):
                     esi_squad = existing_squads[i]
                     squad_id = esi_squad['id']
@@ -1824,7 +1979,7 @@ def api_fc_delete_squad(request):
     """
     open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
     if not open_waitlist:
-        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=4000)
         
     fleet = open_waitlist.fleet
     if not fleet.esi_fleet_id or not fleet.fleet_commander:

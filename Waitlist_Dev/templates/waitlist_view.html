@@ -592,7 +592,10 @@ It will be filled by the partial template on page load.
                     html += `<img src="https://images.evetech.net/types/2965/icon?size=32" alt="Empty Slot" class="fit-modal-icon" style="opacity: 0.2;">`;
                     html += `<span class="fit-item-name">${item.name}</span>`;
                 } else {
-                    html += `<img src="${item.icon_url}" alt="${item.name}" class="fit-modal-icon">`;
+                    // --- *** THIS IS THE FIX: Check for icon_url *** ---
+                    const icon_url = item.icon_url || `https://images.evetech.net/types/${item.type_id}/icon?size=32`;
+                    html += `<img src="${icon_url}" alt="${item.name}" class="fit-modal-icon">`;
+                    // --- *** END THE FIX *** ---
                     const line_text = item.raw_line || item.name;
                     const safe_line = line_text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     html += `<span class="fit-item-name">${safe_line}</span>`;
@@ -615,7 +618,21 @@ It will be filled by the partial template on page load.
                     }
                 }
                 else if (item.status === 'problem') {
-                    if (item.potential_matches && item.potential_matches.length > 0) {
+                    // --- *** NEW: Check for failure_reasons *** ---
+                    if (item.failure_reasons && item.failure_reasons.length > 0) {
+                        indentedListHtml = '<ul class="fit-item-failure-list">'; // New class
+                        item.failure_reasons.forEach(fail => {
+                            indentedListHtml += `<li class="fit-item-failure-item">`; // New class
+                            // Format numbers nicely
+                            const subVal = parseFloat(fail.submitted_value).toLocaleString();
+                            const docVal = parseFloat(fail.doctrine_value).toLocaleString();
+                            indentedListHtml += `<span>&#9888; ${fail.attribute_name} (Fit: ${subVal}, Need: ${docVal})</span>`;
+                            indentedListHtml += `</li>`;
+                        });
+                        indentedListHtml += '</ul>';
+                    }
+                    // --- *** END NEW *** ---
+                    else if (item.potential_matches && item.potential_matches.length > 0) {
                         indentedListHtml = '<ul class="fit-item-missing-list">';
                         item.potential_matches.forEach(match => {
                             indentedListHtml += `<li class="fit-item-missing-item">`;
@@ -624,8 +641,12 @@ It will be filled by the partial template on page load.
                             indentedListHtml += `</li>`;
                         });
                         indentedListHtml += '</ul>';
+                    } else {
+                        indentedListHtml = `<span class="fit-item-problem-tag">(Wrong Item)</span>`;
+                    }
 
-                        // Add the accept button
+                    // Add the "Make Sub" button if there's a potential match
+                    if (item.potential_matches && item.potential_matches.length > 0) {
                         const match = item.potential_matches[0];
                         buttonsHtml = `<div class="sub-action-buttons">
                             <button class="fc-btn btn-approve js-sub-accept"
@@ -635,8 +656,6 @@ It will be filled by the partial template on page load.
                                 data-missing-item-name="${match.name}"
                                 title="Accept ${item.name} as substitute for ${match.name}">&#10003;</button>
                         </div>`;
-                    } else {
-                        indentedListHtml = `<span class="fit-item-problem-tag">(Wrong Item)</span>`;
                     }
                 }
 
@@ -755,7 +774,7 @@ It will be filled by the partial template on page load.
             const problemItemName = button.dataset.problemItemName;
             const missingItemName = button.dataset.missingItemName;
 
-            const listItem = button.closest('li[data-item-type-id]');
+            const listItem = button.closest('li.fit-slot-item'); // --- MODIFIED: Use new selector ---
 
             if (!missingItemId) {
                 alert("Missing doctrine item ID not found for substitution.");
