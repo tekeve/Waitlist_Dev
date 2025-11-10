@@ -63,6 +63,19 @@ class EveType(models.Model):
     rig_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Rig slots (Dogma Attr 1137)")
     subsystem_slots = models.IntegerField(null=True, blank=True, help_text="Ship: Subsystem slots (Dogma Attr 1367)")
     
+    # ---
+    # --- THIS IS THE FIX: Re-adding the 'slot' field
+    # --- This was removed in migration 0008, but is still used
+    # --- by the pilot/views.py file for implants.
+    slot = models.IntegerField(
+        null=True, 
+        blank=True, 
+        help_text="Implant slot (if applicable) (Dogma Attr 300)"
+    )
+    # ---
+    # --- END THE FIX
+    # ---
+    
     # This comes from dgmTypeEffects.csv
     slot_type = models.CharField(
         max_length=10, 

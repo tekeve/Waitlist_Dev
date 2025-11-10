@@ -25,6 +25,20 @@ class EveCharacter(models.Model):
     access_token = models.TextField()
     refresh_token = models.TextField()
     token_expiry = models.DateTimeField()
+    
+    # --- NEW: Fields for alt management ---
+    is_main = models.BooleanField(
+        default=False,
+        help_text="Is this the main character for this user account?"
+    )
+    # --- END NEW ---
+    
+    # --- NEW: Corp/Alliance Info ---
+    corporation_id = models.BigIntegerField(null=True, blank=True)
+    corporation_name = models.CharField(max_length=255, null=True, blank=True)
+    alliance_id = models.BigIntegerField(null=True, blank=True)
+    alliance_name = models.CharField(max_length=255, null=True, blank=True)
+    # --- END NEW ---
 
     def __str__(self):
         return self.character_name

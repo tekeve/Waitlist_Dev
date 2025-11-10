@@ -759,8 +759,10 @@
 <body>
 
     {% if user.is_authenticated %}
-    {% with main_char=user.eve_characters.first all_chars=user.eve_characters.all %}
 
+    <!-- --- MODIFIED: Use new context variables --- -->
+    {% with main_char=main_char_for_header all_chars=all_chars_for_header %}
+    <!-- --- END MODIFICATION --- -->
     <!-- --- SHARED USER HEADER --- -->
     <nav class="user-header">
 

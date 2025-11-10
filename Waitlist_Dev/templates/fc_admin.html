@@ -304,7 +304,25 @@
             background: #666;
         }
 
-    /* --- THIS IS THE FIX: The .btn-wing-delete style is removed --- */
+    /* --- THIS IS THE FIX: This class is now used --- */
+    .btn-delete-wing {
+        background: #993333;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 1.1em;
+        line-height: 1;
+        padding: 3px 6px;
+        flex-shrink: 0; /* Don't shrink */
+        transition: background-color 0.2s;
+    }
+
+        .btn-delete-wing:hover {
+            background: #b33a3a;
+        }
+
 
     .wing-name-input {
         /* This is the new text input for the wing name */
@@ -794,8 +812,17 @@
 
                 html += `<div class="wing-header-controls">`;
                 html += `<button class="btn-wing-action btn-add-squad" data-wing-id="${wing.id}" title="Add New Squad">+ Add Squad</button>`;
-                /* --- THIS IS THE FIX: Changed class to btn-delete-squad --- */
-                html += `<button class="btn-delete-squad" data-wing-id="${wing.id}" data-wing-name="${wing.name}" title="Delete Wing">&times;</button>`;
+
+                // ---
+                // --- THIS IS THE FIX ---
+                // ---
+                // The comment was wrong, but the code was ALSO wrong.
+                // The class is now corrected to `btn-delete-wing`.
+                html += `<button class="btn-delete-wing" data-wing-id="${wing.id}" data-wing-name="${wing.name}" title="Delete Wing">&times;</button>`;
+                // ---
+                // --- END THE FIX ---
+                // ---
+
                 html += `</div></div>`;
 
                 html += `<div class="squad-list">`;

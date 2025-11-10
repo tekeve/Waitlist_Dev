@@ -179,6 +179,13 @@ def home(request):
     
     is_fc = request.user.groups.filter(name='Fleet Commander').exists()
     
+    # --- NEW: Context logic for Main/Alts ---
+    all_user_chars = request.user.eve_characters.all().order_by('character_name')
+    main_char = all_user_chars.filter(is_main=True).first()
+    if not main_char:
+        main_char = all_user_chars.first()
+    # --- END NEW ---
+    
     context = {
         'xup_fits': xup_fits,
         'dps_fits': dps_fits,
@@ -187,7 +194,12 @@ def home(request):
         'other_fits': other_fits,
         'is_fc': is_fc, # Pass FC status to template
         'open_waitlist': open_waitlist,
-        'user_characters': EveCharacter.objects.filter(user=request.user) # For the modal
+        'user_characters': all_user_chars, # For the modal (was user_characters)
+        
+        # --- NEW CONTEXT ---
+        'all_chars_for_header': all_user_chars, # For header dropdown
+        'main_char_for_header': main_char, # For header dropdown
+        # --- END NEW CONTEXT ---
     }
     return render(request, 'waitlist_view.html', context)
     
@@ -229,12 +241,23 @@ def fittings_view(request):
 
     # 5. Get context variables needed by base.html
     is_fc = request.user.groups.filter(name='Fleet Commander').exists()
-    user_characters = EveCharacter.objects.filter(user=request.user)
+    
+    # --- NEW: Context logic for Main/Alts ---
+    all_user_chars = request.user.eve_characters.all().order_by('character_name')
+    main_char = all_user_chars.filter(is_main=True).first()
+    if not main_char:
+        main_char = all_user_chars.first()
+    # --- END NEW ---
     
     context = {
         'grouped_fits': grouped_fits, # Pass the new grouped list
         'is_fc': is_fc,
-        'user_characters': user_characters,
+        'user_characters': all_user_chars, # For X-Up modal
+        
+        # --- NEW CONTEXT ---
+        'all_chars_for_header': all_user_chars, # For header dropdown
+        'main_char_for_header': main_char, # For header dropdown
+        # --- END NEW CONTEXT ---
     }
     
     return render(request, 'fittings_view.html', context)
@@ -277,14 +300,14 @@ def _build_slotted_fit_context(ship_eve_type, parsed_fit_list):
     
     for item in parsed_fit_list:
         # ---
-        # --- THIS IS THE FIX ---
+        # --- THIS IS THE FIX
         # ---
         # Trust the parser's 'final_slot' designation
         final_slot = item.get('final_slot')
         if not final_slot or final_slot not in item_bins:
             final_slot = 'cargo' # Fallback
         # ---
-        # --- END THE FIX ---
+        # --- END THE FIX
         # ---
             
         type_id = item.get('type_id')
@@ -1095,11 +1118,24 @@ def fc_admin_view(request):
     available_fleets = Fleet.objects.filter(is_active=False).order_by('description')
     # --- END NEW ---
 
+    # --- NEW: Context logic for Main/Alts ---
+    all_user_chars = request.user.eve_characters.all().order_by('character_name')
+    main_char = all_user_chars.filter(is_main=True).first()
+    if not main_char:
+        main_char = all_user_chars.first()
+    # --- END NEW ---
+
     context = {
         'open_waitlist': open_waitlist,
         'user_fc_characters': user_fc_characters,
         'available_fleets': available_fleets, # --- ADDED ---
         'is_fc': True, # We know this is true because of the decorator
+        
+        # --- NEW CONTEXT ---
+        'user_characters': all_user_chars, # For X-Up modal
+        'all_chars_for_header': all_user_chars, # For header dropdown
+        'main_char_for_header': main_char, # For header dropdown
+        # --- END NEW CONTEXT ---
     }
     return render(request, 'fc_admin.html', context)
 
@@ -2088,6 +2124,73 @@ def api_fc_delete_wing(request):
         ).results()
         
         return JsonResponse({"status": "success", "message": "Wing deleted."})
+
+    except Exception as e:
+        return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
+# ---
+# --- END NEW API
+# ---
+
+
+# ---
+# --- NEW API FOR REFRESHING STRUCTURE
+# ---
+@login_required
+@require_POST
+@user_passes_test(is_fleet_commander)
+def api_fc_refresh_structure(request):
+    """
+    Pulls the current fleet structure from ESI,
+    updates the database, and returns the new structure.
+    """
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        return JsonResponse({"status": "error", "message": "Waitlist is closed."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+
+    try:
+        # 1. Get FC token and ESI client
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        
+        # 2. Call the helper to update the DB
+        _update_fleet_structure(
+            esi, fc_character, token, 
+            fleet.esi_fleet_id, fleet
+        )
+        
+        # 3. Get the new structure to return
+        wings = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads')
+        available_categories = [
+            {"id": choice[0], "name": choice[1]}
+            for choice in ShipFit.FitCategory.choices
+            if choice[0] != 'NONE'
+        ]
+        structure = {
+            "wings": [],
+            "available_categories": available_categories
+        }
+        
+        for wing in wings:
+            wing_data = {
+                "id": wing.wing_id,
+                "name": wing.name,
+                "squads": []
+            }
+            # --- THIS IS THE FIX: Added .order_by('squad_id') ---
+            for squad in wing.squads.order_by('squad_id'):
+                wing_data["squads"].append({
+                    "id": squad.squad_id,
+                    "name": squad.name,
+                    "assigned_category": squad.assigned_category
+                })
+            structure["wings"].append(wing_data)
+
+        return JsonResponse({"status": "success", "structure": structure})
 
     except Exception as e:
         return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)

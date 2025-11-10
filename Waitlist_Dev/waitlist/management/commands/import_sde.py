@@ -24,6 +24,7 @@ DOGMA_ATTR_IDS = {
     'rig_slots': 1137,
     'subsystem_slots': 1367,
     'meta_level': 633,
+    'slot': 300, # --- THIS IS THE FIX: Add implant slot (Dogma Attr 300)
 }
 
 # Dogma Effect IDs for determining module slot type

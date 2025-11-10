@@ -3,8 +3,8 @@
 <!-- Set the page title -->
 {% block title %}{{ character.character_name }} - Pilot Details{% endblock %}
 
-<!-- 
-FIX: These styles are now wrapped in their own <style> tag 
+<!--
+FIX: These styles are now wrapped in their own <style> tag
 so they can be correctly injected into the base.html <head>.
 -->
 {% block styles %}
@@ -21,58 +21,103 @@ so they can be correctly injected into the base.html <head>.
 
     @media (min-width: 1200px) {
         .container {
-            max-width: 1400px; 
+            max-width: 1400px;
         }
     }
 
+    /* --- MODIFIED: Header is now a flex container --- */
     .header {
         display: flex;
-        align-items: center;
+        flex-wrap: wrap; /* Allow stacking on mobile */
+        justify-content: space-between;
+        align-items: flex-start; /* Align tops of items */
         gap: 20px;
         border-bottom: 0px solid #444;
         padding-bottom: 20px;
     }
-    .header img {
-        border-radius: 50%;
-        border: 2px solid #555;
+
+    .header-info {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-grow: 1; /* Allow it to grow */
     }
-    .header h1 {
-        margin: 0;
-        font-size: 2.5em;
-        color: #fff;
-    }
+
+        .header-info img {
+            border-radius: 50%;
+            border: 2px solid #555;
+        }
+
+        .header-info h1 {
+            margin: 0;
+            font-size: 2.5em;
+            color: #fff;
+        }
+
     .info {
         font-size: 1.1em;
         color: #ccc;
     }
-    .info strong {
-        color: #fff;
-        font-weight: 600;
+
+        .info strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .info small {
+            color: #999;
+        }
+
+    /* --- NEW: Corp/Alliance Styles --- */
+    .corp-info {
+        font-size: 1.1em;
+        color: #ccc;
+        margin-top: 5px; /* Add space below SP */
     }
-    .info small {
-        color: #999;
-    }
+
+        .corp-info strong {
+            color: #aaa; /* Slightly dimmer than pilot name */
+            font-weight: 500;
+        }
+
+        .corp-info img {
+            width: 24px; /* Small icon */
+            height: 24px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+    /* --- END NEW --- */
+
+    /* --- END HEADER MODIFICATION --- */
+
 
     .section {
         margin-top: 25px;
     }
-    .section h2 {
-        border-bottom: 0px solid #444;
-        padding-bottom: 10px;
-        font-size: 1.8em;
-        color: #fff;
-    }
+
+        .section h2 {
+            border-bottom: 0px solid #444;
+            padding-bottom: 10px;
+            font-size: 1.8em;
+            color: #fff;
+        }
 
     /* --- IMPLANT STYLES --- */
     .implant-other-list {
-        list-style: none; padding: 0; margin: 0;
-        display: flex; flex-direction: column; gap: 4px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
 
     .implant-grid-container {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 10px; margin-top: 10px;
+        gap: 10px;
+        margin-top: 10px;
     }
 
     @media (min-width: 768px) {
@@ -82,28 +127,51 @@ so they can be correctly injected into the base.html <head>.
     }
 
     .implant-column-list {
-        list-style: none; padding: 0; margin: 0;
-        display: flex; flex-direction: column; gap: 4px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
 
     .implant-item {
-        display: flex; align-items: center; gap: 8px;
-        padding: 4px 6px; background: #333; border-radius: 5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 6px;
+        background: #333;
+        border-radius: 5px;
     }
-    .implant-item img {
-        width: 32px; height: 32px; border-radius: 4px; flex-shrink: 0;
-    }
+
+        .implant-item img {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
     .implant-info {
-        display: flex; flex-direction: column;
-        flex-grow: 1; min-width: 0;
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        min-width: 0;
     }
+
     .implant-slot {
-        font-size: 0.7em; font-weight: bold;
-        color: #aaa; text-transform: uppercase;
+        font-size: 0.7em;
+        font-weight: bold;
+        color: #aaa;
+        text-transform: uppercase;
     }
+
     .implant-name {
-        font-size: 0.9em; font-weight: 500; color: #fff;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-size: 0.9em;
+        font-weight: 500;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* --- SKILL STYLES --- */
@@ -112,69 +180,211 @@ so they can be correctly injected into the base.html <head>.
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 20px;
     }
+
     .skill-group {
-        padding-top: 10px; min-width: 0; 
+        padding-top: 10px;
+        min-width: 0;
     }
+
     .skill-group-header {
-        font-size: 0.9em; font-weight: 700; color: #aaa;
-        text-transform: uppercase; letter-spacing: 0.5px;
-        margin: 0 0 8px 0; padding-bottom: 5px;
+        font-size: 0.9em;
+        font-weight: 700;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0 0 8px 0;
+        padding-bottom: 5px;
         border-bottom: 0px solid #444;
     }
+
     .skill-list {
-        list-style: none; padding: 0; margin: 0;
-        display: flex; flex-direction: column; gap: 6px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
     }
+
     .skill-item {
-        display: flex; justify-content: space-between; align-items: center;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
+
     .skill-name {
-        font-size: 0.9em; font-weight: 500; color: #ddd;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-size: 0.9em;
+        font-weight: 500;
+        color: #ddd;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         padding-right: 10px;
     }
+
     .skill-level-squares {
-        display: flex; gap: 2px; flex-shrink: 0;
+        display: flex;
+        gap: 2px;
+        flex-shrink: 0;
     }
+
     .skill-square {
-        width: 10px; height: 10px; background-color: #444;
+        width: 10px;
+        height: 10px;
+        background-color: #444;
         border: 0px solid #555;
     }
-    .skill-square.trained {
-        background-color: #b33a3a; border-color: #c94444;
-    }
+
+        .skill-square.trained {
+            background-color: #b33a3a;
+            border-color: #c94444;
+        }
 
     /* --- LOADING OVERLAY STYLES --- */
     #loading-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         background: rgba(0, 0, 0, 0.85);
-        display: flex; flex-direction: column;
-        justify-content: center; align-items: center;
-        z-index: 1000; display: none; 
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        display: none;
     }
-    #loading-overlay.show { display: flex; }
+
+        #loading-overlay.show {
+            display: flex;
+        }
+
     .spinner {
-        width: 60px; height: 60px; border: 6px solid #555;
-        border-top-color: #fff; border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        border: 6px solid #555;
+        border-top-color: #fff;
+        border-radius: 50%;
         animation: spin 1s linear infinite;
     }
+
     #loading-overlay p {
-        color: #fff; font-size: 1.2em; margin-top: 20px;
+        color: #fff;
+        font-size: 1.2em;
+        margin-top: 20px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* --- NEW: Alt Management Card Styles --- */
+    .header-alts {
+        flex-grow: 1; /* Allow to grow */
+        flex-basis: 300px; /* Start at 300px */
+        max-width: 450px; /* Max width */
+        background: #333;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 0; /* Override .section margin */
+    }
+
+        .header-alts h2 {
+            margin-top: 0;
+            font-size: 1.5em; /* Smaller title */
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+            margin-bottom: 10px;
+        }
+
+    .alt-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .alt-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px; /* Removed horizontal padding */
+        background: #3c3c3c; /* Darker item background */
+        border-radius: 5px;
+    }
+
+    .alt-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .alt-info img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+
+    .alt-name {
+        font-weight: 600;
+        color: #fff;
+    }
+
+    .main-tag {
+        font-size: 0.8em;
+        font-weight: bold;
+        color: #28a745;
+        background: rgba(40, 167, 69, 0.2);
+        padding: 3px 8px;
+        border-radius: 4px;
+        margin-left: 5px;
+    }
+
+    .btn-set-main {
+        display: inline-block;
+        padding: 5px 12px;
+        background-color: #555;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: 600;
+        font-size: 0.9em;
+        transition: background-color 0.2s;
+        border: none;
+        cursor: pointer;
+    }
+
+        .btn-set-main:hover {
+            background-color: #666;
+        }
+
+        .btn-set-main:disabled {
+            background-color: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+    /* --- END NEW --- */
 </style>
 {% endblock %}
 
 
 <!-- Inject the pilot detail content -->
 {% block content %}
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        <p>Refreshing ESI Data...</p>
-    </div>
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loading-text">Refreshing ESI Data...</p> <!-- --- NEW: Added ID --- -->
+</div>
 
-    <div class="container">
-        <div class="header">
+<div class="container">
+    <div class="header">
+
+        <!-- --- MODIFIED: Left Side Info --- -->
+        <div class="header-info">
             <img src="{{ portrait_url }}" alt="{{ character.character_name }} portrait" width="128" height="128">
             <div>
                 <h1>{{ character.character_name }}</h1>
@@ -182,103 +392,149 @@ so they can be correctly injected into the base.html <head>.
                     <strong>Total SP:</strong> {{ total_sp|intcomma }}<br>
                     <small>Snapshot as of: {{ snapshot_time }}</small>
                 </p>
+                <!-- --- NEW: Corp/Alliance Info --- -->
+                <div class="corp-info">
+                    {% if character.corporation_id %}
+                    <p style="margin: 5px 0;">
+                        <img src="https://images.evetech.net/corporations/{{ character.corporation_id }}/logo?size=32" alt="">
+                        <strong>{{ character.corporation_name }}</strong>
+                    </p>
+                    {% endif %}
+                    {% if character.alliance_id %}
+                    <p style="margin: 5px 0;">
+                        <img src="https://images.evetech.net/alliances/{{ character.alliance_id }}/logo?size=32" alt="">
+                        <strong>{{ character.alliance_name }}</strong>
+                    </p>
+                    {% endif %}
+                </div>
+                <!-- --- END NEW --- -->
             </div>
         </div>
-
-        <div class="section">
-            <h2>Implants</h2>
-            
-            <ul class="implant-other-list">
-                {% for implant in implants_other %}
-                    <li class="implant-item" title="{{ implant.name }} ({{ implant.group_name }})">
-                        <img src="{{ implant.icon_url }}" 
-                             alt="{{ implant.name }}">
-                        <div class="implant-info">
-                            <span class="implant-slot">
-                                {% if implant.slot > 0 %}
-                                    Slot {{ implant.slot }}
-                                {% else %}
-                                    Implant
-                                {% endif %}
-                            </span>
-                            <span class="implant-name">{{ implant.name }}</span>
-                        </div>
-                    </li>
+        <!-- --- END MODIFICATION --- -->
+        <!-- --- NEW: ALT MANAGEMENT CARD (MOVED) --- -->
+        <div class="header-alts section">
+            <h2>Alt Management</h2>
+            <ul class="alt-list" id="alt-list-container">
+                {% for char in all_chars_for_header %}
+                <li class="alt-item">
+                    <div class="alt-info">
+                        <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=32" alt="{{ char.character_name }}">
+                        <span class="alt-name">{{ char.character_name }}</span>
+                        {% if char.is_main %}
+                        <span class="main-tag">MAIN</span>
+                        {% endif %}
+                    </div>
+                    {% if not char.is_main %}
+                    <button class="btn-set-main" data-id="{{ char.character_id }}">
+                        Set as Main
+                    </button>
+                    {% endif %}
+                </li>
                 {% endfor %}
             </ul>
+        </div>
+        <!-- --- END NEW --- -->
 
-            <div class="implant-grid-container">
-                <ul class="implant-column-list">
-                    {% for implant in implants_col1 %}
-                        <li class="implant-item" title="{{ implant.name }} ({{ implant.group_name }})">
-                            <img src="{{ implant.icon_url }}" 
-                                 alt="{{ implant.name }}">
-                            <div class="implant-info">
-                                <span class="implant-slot">Slot {{ implant.slot }}</span>
-                                <span class="implant-name">{{ implant.name }}</span>
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-                <ul class="implant-column-list">
-                    {% for implant in implants_col2 %}
-                        <li class="implant-item" title="{{ implant.name }} ({{ implant.group_name }})">
-                            <img src="{{ implant.icon_url }}" 
-                                 alt="{{ implant.name }}">
-                            <div class="implant-info">
-                                <span class="implant-slot">Slot {{ implant.slot }}</span>
-                                <span class="implant-name">{{ implant.name }}</span>
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            
-            {% if not implants_other and not implants_col1 and not implants_col2 %}
-                <p>No implants found.</p>
-            {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Implants</h2>
+
+        <ul class="implant-other-list">
+            {% for implant in implants_other %}
+            <li class="implant-item" title="{{ implant.name }} ({{ implant.group_name }})">
+                <img src="{{ implant.icon_url }}"
+                     alt="{{ implant.name }}">
+                <div class="implant-info">
+                    <span class="implant-slot">
+                        {% if implant.slot > 0 %}
+                        Slot {{ implant.slot }}
+                        {% else %}
+                        Implant
+                        {% endif %}
+                    </span>
+                    <span class="implant-name">{{ implant.name }}</span>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div class="implant-grid-container">
+            <ul class="implant-column-list">
+                {% for implant in implants_col1 %}
+                <li class="implant-item" title="{{ implant.name }} ({{ implant.group_name }})">
+                    <img src="{{ implant.icon_url }}"
+                         alt="{{ implant.name }}">
+                    <div class="implant-info">
+                        <span class="implant-slot">Slot {{ implant.slot }}</span>
+                        <span class="implant-name">{{ implant.name }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            <ul class="implant-column-list">
+                {% for implant in implants_col2 %}
+                <li class="implant-item" title="{{ implant.name }} ({{ implant.group_name }})">
+                    <img src="{{ implant.icon_url }}"
+                         alt="{{ implant.name }}">
+                    <div class="implant-info">
+                        <span class="implant-slot">Slot {{ implant.slot }}</span>
+                        <span class="implant-name">{{ implant.name }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
         </div>
 
-        <div class="section">
-            <h2>Skills</h2>
-            
-            <div class="skill-grid-container">
-                {% for group_name, skill_list in grouped_skills.items %}
-                    <div class="skill-group">
-                        <h3 class="skill-group-header">{{ group_name }}</h3>
-                        <ul class="skill-list">
-                            {% for skill in skill_list %}
-                                <li class="skill-item">
-                                    <span class="skill-name" title="{{ skill.name }}">{{ skill.name }}</span>
-                                    <div class="skill-level-squares" title="Level {{ skill.level }}">
-                                        <span class="skill-square {% if skill.level >= 1 %}trained{% endif %}"></span>
-                                        <span class="skill-square {% if skill.level >= 2 %}trained{% endif %}"></span>
-                                        <span class="skill-square {% if skill.level >= 3 %}trained{% endif %}"></span>
-                                        <span class="skill-square {% if skill.level >= 4 %}trained{% endif %}"></span>
-                                        <span class="skill-square {% if skill.level >= 5 %}trained{% endif %}"></span>
-                                    </div>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                {% empty %}
-                    <p>No skills found for this pilot.</p>
-                {% endfor %}
+        {% if not implants_other and not implants_col1 and not implants_col2 %}
+        <p>No implants found.</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Skills</h2>
+
+        <div class="skill-grid-container">
+            {% for group_name, skill_list in grouped_skills.items %}
+            <div class="skill-group">
+                <h3 class="skill-group-header">{{ group_name }}</h3>
+                <ul class="skill-list">
+                    {% for skill in skill_list %}
+                    <li class="skill-item">
+                        <span class="skill-name" title="{{ skill.name }}">{{ skill.name }}</span>
+                        <div class="skill-level-squares" title="Level {{ skill.level }}">
+                            <span class="skill-square {% if skill.level >= 1 %}trained{% endif %}"></span>
+                            <span class="skill-square {% if skill.level >= 2 %}trained{% endif %}"></span>
+                            <span class="skill-square {% if skill.level >= 3 %}trained{% endif %}"></span>
+                            <span class="skill-square {% if skill.level >= 4 %}trained{% endif %}"></span>
+                            <span class="skill-square {% if skill.level >= 5 %}trained{% endif %}"></span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
+            {% empty %}
+            <p>No skills found for this pilot.</p>
+            {% endfor %}
         </div>
     </div>
+</div>
 {% endblock %}
 
 <!-- Add page-specific scripts -->
 {% block scripts %}
-    <script>
+<script>
         document.addEventListener('DOMContentLoaded', () => {
             const needsRefresh = {{ needs_refresh|yesno:"true,false" }};
-            
+
             if (needsRefresh) {
                 const overlay = document.getElementById('loading-overlay');
+                // --- NEW: Update loading text ---
+                const loadingText = document.getElementById('loading-text');
+                loadingText.textContent = 'Refreshing ESI Data... (Skills, Implants, Corp)';
+                // --- END NEW ---
                 overlay.classList.add('show');
-                
+
                 const refreshUrl = "{% url 'pilot:api_refresh_pilot' character.character_id %}";
                 const csrfToken = "{{ csrf_token }}";
 
@@ -305,6 +561,58 @@ so they can be correctly injected into the base.html <head>.
                     overlay.innerHTML = `<p style="color: #ff8a8a;">Error refreshing data. Please try logging out and back in.</p>`;
                 });
             }
+
+            // --- NEW: Alt Management Button Listeners ---
+            const altContainer = document.getElementById('alt-list-container');
+            if (altContainer) {
+                altContainer.addEventListener('click', (event) => {
+                    const button = event.target.closest('.btn-set-main');
+                    if (!button) return;
+
+                    const charId = button.dataset.id;
+                    if (!charId) return;
+
+                    // Disable all buttons
+                    altContainer.querySelectorAll('.btn-set-main').forEach(btn => {
+                        btn.disabled = true;
+                        btn.textContent = 'Setting...';
+                    });
+
+                    const formData = new FormData();
+                    formData.append('character_id', charId);
+
+                    fetch("{% url 'pilot:api_set_main_character' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': "{{ csrf_token }}",
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // Reload the page to show the change
+                            window.location.reload();
+                        } else {
+                            alert(`Error: ${data.message}`);
+                            // Re-enable buttons on failure
+                            altContainer.querySelectorAll('.btn-set-main').forEach(btn => {
+                                btn.disabled = false;
+                                btn.textContent = 'Set as Main';
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        alert(`Network Error: ${error.message}`);
+                        altContainer.querySelectorAll('.btn-set-main').forEach(btn => {
+                            btn.disabled = false;
+                            btn.textContent = 'Set as Main';
+                        });
+                    });
+                });
+            }
+            // --- END NEW ---
         });
-    </script>
+</script>
 {% endblock %}

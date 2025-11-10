@@ -15,6 +15,11 @@ from datetime import timezone, timedelta # Import for time calculations
 # Import the CallbackRedirect model from the esi library
 from esi.models import CallbackRedirect, Token
 
+# --- NEW: Import ESI client ---
+from esi.clients import EsiClientProvider
+from bravado.exception import HTTPNotFound
+# --- END NEW ---
+
 
 try:
     # Import the real callback view from the esi library
@@ -134,45 +139,91 @@ def sso_complete_login(request):
         return redirect('waitlist:home')
 
 
-    # --- THE FIX: Handle 'Add Alt' vs 'First Login' ---
+    # ---
+    # --- THIS IS THE FIX: Handle 'Add Alt' vs 'First Login'
+    # ---
     
-    # This variable will hold the Django account
     user_account = None 
-    
-    # --- START FIX: We need to know if we should log them in at the end ---
-    # We'll store this boolean.
     user_was_authenticated = request.user.is_authenticated
-    # --- END FIX ---
+    
+    # --- NEW: Get ESI client ---
+    esi = EsiClientProvider()
+    
+    # --- NEW: Helper function to get public corp/alliance data ---
+    def get_public_character_data(character_id):
+        try:
+            public_data = esi.client.Character.get_characters_character_id(
+                character_id=character_id
+            ).results()
+            
+            corp_id = public_data.get('corporation_id')
+            alliance_id = public_data.get('alliance_id')
+            
+            corp_name = None
+            if corp_id:
+                corp_data = esi.client.Corporation.get_corporations_corporation_id(
+                    corporation_id=corp_id
+                ).results()
+                corp_name = corp_data.get('name')
+                
+            alliance_name = None
+            if alliance_id:
+                try:
+                    alliance_data = esi.client.Alliance.get_alliances_alliance_id(
+                        alliance_id=alliance_id
+                    ).results()
+                    alliance_name = alliance_data.get('name')
+                except HTTPNotFound:
+                    alliance_name = "N/A" # Handle dead alliances
+
+            return {
+                "corporation_id": corp_id,
+                "corporation_name": corp_name,
+                "alliance_id": alliance_id,
+                "alliance_name": alliance_name,
+            }
+        except Exception as e:
+            print(f"Error fetching public data for {character_id}: {e}")
+            return {} # Return empty dict on failure
+    # --- END NEW HELPER ---
+    
+    
+    # --- Get public data ---
+    public_data = get_public_character_data(char_id)
+    # ---
 
 
     if user_was_authenticated:
         # CASE 1: USER IS ALREADY LOGGED IN (Adding an Alt)
-        # Use the currently logged-in user as the account.
         user_account = request.user
     else:
-        # CASE 2: USER IS NOT LOGGED IN (First-time login)
-        # --- THIS IS THE FIX ---
-        # We now use the character ID as the username, which has no spaces.
-        # We store the character's real name in the 'first_name' field.
-        user_account, created = User.objects.get_or_create(
-            username=str(char_id), # Use character ID as username
-            defaults={'first_name': char_name} # Set name only on creation
-        )
+        # CASE 2: USER IS NOT LOGGED IN
+        
+        # --- THIS IS THE FIX: Check if character exists first ---
+        try:
+            existing_char = EveCharacter.objects.get(character_id=char_id)
+            # If found, log in as that character's user
+            user_account = existing_char.user
+        except EveCharacter.DoesNotExist:
+            # Not found, so this is a NEW user
+            user_account, created = User.objects.get_or_create(
+                username=str(char_id), # Use character ID as username
+                defaults={'first_name': char_name} # Set name only on creation
+            )
 
-        # If user already existed, check if their name changed
-        if not created and user_account.first_name != char_name:
-            user_account.first_name = char_name
-            user_account.save() # Save the name change
+            # If user already existed, check if their name changed
+            if not created and user_account.first_name != char_name:
+                user_account.first_name = char_name
+                user_account.save() # Save the name change
 
-        if created:
-            user_account.is_active = True
-            # If this is the very first user, make them an admin
-            if User.objects.count() == 1:
-                user_account.is_staff = True
-                user_account.is_superuser = True
-            user_account.save() # Save the new user (with flags)
-            
-    # --- END FIX ---
+            if created:
+                user_account.is_active = True
+                # If this is the very first user, make them an admin
+                if User.objects.count() == 1:
+                    user_account.is_staff = True
+                    user_account.is_superuser = True
+                user_account.save() # Save the new user (with flags)
+        # --- END FIX ---
 
 
     # 5. Link the token to this user account.
@@ -182,13 +233,14 @@ def sso_complete_login(request):
         
     # --- FINAL FIX: Create the EveCharacter object ---
     # 6. Find or create the EveCharacter link.
-    #    This now correctly uses 'user_account'
     
-    # --- THIS IS THE FIX ---
-    # We were using 'esi_token.expires', which does not exist.
-    # We will now calculate the expiry time based on the 'created' field.
-    # Most EVE tokens last for 20 minutes (1200 seconds).
     expiry_time = esi_token.created + timedelta(seconds=1200)
+    
+    # --- NEW: Check if this is the first char for this user ---
+    # We do this *before* creating the new one
+    existing_char_count = EveCharacter.objects.filter(user=user_account).count()
+    is_first_char = (existing_char_count == 0)
+    # --- END NEW ---
     
     eve_char, char_created = EveCharacter.objects.get_or_create(
         character_id=char_id,
@@ -197,26 +249,45 @@ def sso_complete_login(request):
             'character_name': char_name,
             'access_token': esi_token.access_token,
             'refresh_token': esi_token.refresh_token,
-            'token_expiry': expiry_time # Use our calculated time
+            'token_expiry': expiry_time, # Use our calculated time
+            'is_main': is_first_char, # <-- NEW: Set is_main if first char
+            **public_data # <-- NEW: Add corp/alliance data
         }
     )
     
-    # If the character record already existed, update its user link
-    # This handles "re-linking" a character to a different account if needed
     if not char_created:
-        if eve_char.user != user_account:
-            eve_char.user = user_account
-        # Also update the token fields in case they were refreshed
+        # Character record already existed
+        
+        # --- NEW: Update token and public data ---
         eve_char.access_token = esi_token.access_token
         eve_char.refresh_token = esi_token.refresh_token
-        eve_char.token_expiry = expiry_time # Use our calculated time
+        eve_char.token_expiry = expiry_time
+        
+        eve_char.corporation_id = public_data.get('corporation_id')
+        eve_char.corporation_name = public_data.get('corporation_name')
+        eve_char.alliance_id = public_data.get('alliance_id')
+        eve_char.alliance_name = public_data.get('alliance_name')
+        
+        # This handles re-linking a character to a different account if needed
+        if eve_char.user != user_account:
+            eve_char.user = user_account
+        
         eve_char.save()
-    elif char_created:
+        # --- END NEW ---
+        
+    elif char_created and not is_first_char:
         # This was a new character, but if the token has expired
         # we need to update the expiry time.
         # This handles the case where the EveCharacter was created
         # but the token fields were not updated.
         # A bit redundant with the defaults, but ensures freshness.
+        
+        # --- NEW: Make sure only one main ---
+        # If we just created a new alt, ensure it's not set as main
+        if eve_char.is_main:
+            eve_char.is_main = False
+        # --- END NEW ---
+
         eve_char.access_token = esi_token.access_token
         eve_char.refresh_token = esi_token.refresh_token
         eve_char.token_expiry = expiry_time # Use our calculated time
