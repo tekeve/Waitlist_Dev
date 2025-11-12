@@ -403,6 +403,10 @@
         margin-right: 10px;
     }
 
+    /* ---
+    --- REMOVED FLEET OVERVIEW STYLES
+    --- */
+
     /* Responsive layout for structure */
     @media (max-width: 900px) {
         /* Stack the main grid on smaller screens */
@@ -441,6 +445,8 @@
                 flex-basis: 100%;
                 width: 100%;
             }
+
+        /* --- REMOVED: Fleet overview responsive styles --- */
     }
 
     /* ---
@@ -533,6 +539,11 @@
 
     </div>
     <!-- --- END NEW: Top Grid --- -->
+    <!--
+    ---
+    --- REMOVED: FLEET OVERVIEW SECTION
+    ---
+    -->
     <!-- --- MODIFIED: Fleet structure is now full-width below --- -->
     <div class="admin-section" id="section-fleet-structure" {% if not open_waitlist.fleet.esi_fleet_id %}style="display: none;" {% endif %}>
         <div class="fleet-structure-header">
@@ -703,6 +714,9 @@
                             .then(data => {
                                 if (data.status === 'success') {
                                     showMessage('success', data.message);
+                                    // --- NEW: Stop polling on close ---
+                                    // (Polling logic is no longer in this file)
+                                    // --- END NEW ---
                                     window.location.reload(); // Reload to show the new state
                                 } else {
                                     showMessage('error', `Error: ${data.message}`);
@@ -741,8 +755,14 @@
                         if (data.status === 'success') {
                             showMessage('success', data.message);
                             document.getElementById('esi-fleet-id-display').value = data.esi_fleet_id;
+                            // --- NEW: Show overview section ---
+                            document.getElementById('section-fleet-overview').style.display = 'block';
+                            // --- END NEW ---
                             document.getElementById('section-fleet-structure').style.display = 'block';
                             loadFleetStructure();
+                            // --- NEW: Load overview and start polling ---
+                            // --- REMOVED: Polling logic moved to waitlist_view.html ---
+                            // --- END NEW ---
                             button.disabled = false;
                         } else {
                             showMessage('error', `Error: ${data.message}`);
@@ -1186,6 +1206,10 @@
         }
         // ---
         // --- END Fleet Structure Logic
+        // ---
+
+        // ---
+        // --- REMOVED: FLEET OVERVIEW JAVASCRIPT
         // ---
 
     });

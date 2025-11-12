@@ -16,6 +16,9 @@ urlpatterns = [
     path('fc_admin/', fc_views.fc_admin_view, name='fc_admin'),
     path('api/fc_manage_waitlist/', fc_views.api_fc_manage_waitlist, name='api_fc_manage_waitlist'),
     path('api/get_fleet_structure/', fc_views.api_get_fleet_structure, name='api_get_fleet_structure'),
+    # --- NEW: API for fleet overview ---
+    path('api/get_fleet_members/', fc_views.api_get_fleet_members, name='api_get_fleet_members'),
+    # --- END NEW ---
     path('api/save_squad_mappings/', fc_views.api_save_squad_mappings, name='api_save_squad_mappings'),
     path('api/fc_invite_pilot/', fc_views.api_fc_invite_pilot, name='api_fc_invite_pilot'),
     path('api/fc_create_default_layout/', fc_views.api_fc_create_default_layout, name='api_fc_create_default_layout'),

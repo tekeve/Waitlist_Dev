@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load humanize %}
 
 <!-- This sets the page title -->
@@ -67,6 +67,218 @@
     .status-IN_FLEET {
         border-top: 3px solid #3b5998;
     }
+
+    /* --- NEW: Fleet Overview Column Styles (from fc_admin.html) --- */
+    .column-header.status-OVERVIEW {
+        border-top: 3px solid #3b98d9; /* EVE Blue */
+    }
+
+    /* ---
+    --- NEW: Detailed Ship Count Styles
+    --- */
+    .fleet-ship-counts {
+        /* This is now the main container */
+        background: #2a2a2a;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        /* --- NEW: Use CSS Grid for 2x2 layout --- */
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px; /* Spacing between grid items */
+    }
+
+    .ship-count-category-block {
+        /* This is the new wrapper for a category */
+        min-width: 0; /* Prevents overflow issues */
+    }
+
+    .ship-count-category {
+        font-size: 1.0em;
+        font-weight: bold;
+        color: #fff;
+        margin: 0 0 4px 0; /* Removed top margin */
+        padding-bottom: 3px;
+        border-bottom: 1px solid #444;
+    }
+
+    .ship-count-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .ship-count-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.9em;
+        color: #ccc;
+    }
+
+        .ship-count-item img {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+        }
+
+        .ship-count-item span {
+            flex-grow: 1; /* Pushes count to the right */
+            /* --- NEW: Truncate long ship names --- */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ship-count-item strong {
+            color: #fff;
+            font-size: 1.1em;
+        }
+    /* ---
+    --- END NEW Detailed Ship Count Styles
+    --- */
+
+    .fleet-structure-overview {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.9em; /* Smaller font */
+        /* Let it fill the available space */
+        flex-grow: 1;
+        overflow-y: auto;
+        background: #2a2a2a;
+        padding: 8px;
+        border-radius: 8px;
+        /* Scrollbar styling */
+    }
+
+        .fleet-structure-overview::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .fleet-structure-overview::-webkit-scrollbar-track {
+            background: rgba(42, 42, 42, 0.5);
+            border-radius: 4px;
+        }
+
+        .fleet-structure-overview::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+            .fleet-structure-overview::-webkit-scrollbar-thumb:hover {
+                background: #666;
+            }
+
+    /* --- NEW: FC SECTION --- */
+    .overview-fleet-command {
+        margin-bottom: 8px;
+        background: #3a3a3a;
+        padding: 5px 8px;
+        border-radius: 5px;
+    }
+
+    .overview-fc-header {
+        font-size: 1.0em;
+        font-weight: bold;
+        color: #fff;
+        margin-bottom: 4px;
+        border-bottom: 1px solid #555;
+        padding-bottom: 4px;
+        /* --- NEW: Flex for star --- */
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    /* --- NEW: Gray star --- */
+    .overview-fc-star {
+        color: #999;
+        font-size: 1.2em;
+    }
+
+    .overview-fc-member {
+        list-style: none;
+        padding: 0 0 0 5px; /* Indent slightly */
+        margin: 0;
+        /* --- NEW: Add color --- */
+        color: #3b98d9; /* EVE Blue */
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* --- END NEW --- */
+
+    /* --- NEW: Ship name in overview --- */
+    .overview-member-ship {
+        color: #aaa;
+        font-style: italic;
+        margin-left: 5px;
+    }
+    /* --- END NEW --- */
+
+    .overview-wing {
+        margin-bottom: 8px;
+    }
+
+    .overview-wing-header {
+        font-size: 1.0em; /* Smaller */
+        font-weight: bold;
+        color: #fff;
+        margin-bottom: 4px;
+    }
+
+    .overview-squad {
+        /* remove default indent */
+        margin-bottom: 4px;
+    }
+
+    .overview-squad-header {
+        font-size: 0.95em; /* Smaller */
+        font-weight: bold;
+        color: #ddd;
+    }
+
+    .overview-member-list {
+        list-style: none;
+        padding-left: 5px; /* --- MODIFIED: Minimal indent for list --- */
+        margin: 0;
+    }
+
+    /* --- NEW: Indentation classes --- */
+    .overview-wc { /* Wing Commander */
+        padding-left: 15px;
+        color: #3b98d9;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .overview-squad-header {
+        padding-left: 15px;
+    }
+
+    .overview-sc { /* Squad Commander */
+        padding-left: 30px;
+        color: #3b98d9;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .overview-member { /* Squad Member */
+        padding: 1px 0 1px 45px;
+        color: #aaa; /* Members are dimmer */
+        font-weight: normal;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* --- END NEW --- */
+
 
     .fit-card-list {
         list-style: none;
@@ -332,6 +544,32 @@ It will be filled by the partial template on page load.
 -->
 <div class="waitlist-container" id="waitlist-container-live">
     {% include "_waitlist_columns.html" %}
+
+    <!--
+    ---
+    --- NEW: FLEET OVERVIEW COLUMN
+    ---
+    -->
+    {% if is_fc and open_waitlist %}
+    <div class="waitlist-column" id="fleet-overview-column">
+        <div class="column-header status-OVERVIEW">
+            <h2>Fleet Overview</h2>
+            <!-- Refresh button can be added here if needed -->
+        </div>
+        <!-- --- MODIFIED: Container for new detailed list --- -->
+        <div class="fleet-ship-counts" id="fleet-ship-counts-container">
+            <p style="color: #888; font-size: 0.85em; margin: 0;">Loading ship counts...</p>
+        </div>
+        <div class="fleet-structure-overview" id="fleet-structure-overview-body">
+            <p style="color: #888; font-size: 0.85em; margin: 0;">Loading fleet members...</p>
+        </div>
+    </div>
+    {% endif %}
+    <!--
+    ---
+    --- END NEW FLEET OVERVIEW
+    ---
+    -->
 </div>
 {% endblock %}
 
@@ -518,7 +756,40 @@ It will be filled by the partial template on page load.
             })
             .then(html => {
                 // --- This is the key: replace the content ---
-                waitlistContainer.innerHTML = html;
+                // --- MODIFICATION: Only replace the columns, not the new overview card ---
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                const columnsToReplace = [
+                    '.status-PENDING', '.status-APPROVED', /* Add other column selectors if needed */
+                ];
+
+                // Find all columns in the live DOM
+                const liveColumns = waitlistContainer.querySelectorAll('.waitlist-column');
+                // Find all columns in the new HTML
+                const newColumns = tempDiv.querySelectorAll('.waitlist-column');
+
+                // This is a simple replacement. A more complex diff would be better
+                // for performance, but this is more robust for now.
+                // It replaces all columns *except* our new overview column.
+
+                // Remove old columns
+                liveColumns.forEach(col => {
+                    if (col.id !== 'fleet-overview-column') {
+                        col.remove();
+                    }
+                });
+
+                // Add new columns before the overview column
+                const overviewColumn = document.getElementById('fleet-overview-column');
+                newColumns.forEach(newCol => {
+                    if (overviewColumn) {
+                        waitlistContainer.insertBefore(newCol, overviewColumn);
+                    } else {
+                        waitlistContainer.appendChild(newCol);
+                    }
+                });
+                // --- END MODIFICATION ---
 
                 // After redrawing, re-update the timers immediately
                 updateWaitTimers();
@@ -976,6 +1247,268 @@ It will be filled by the partial template on page load.
         // pollingInterval = setInterval(fetchWaitlistHTML, 5000); // Poll every 5s
     }
 
+    // ---
+    // --- NEW: FLEET OVERVIEW JAVASCRIPT (Moved from fc_admin.html)
+    // ---
+    let fleetOverviewInterval = null;
+    const overviewSection = document.getElementById('fleet-overview-column');
+    const overviewCountsContainer = document.getElementById('fleet-ship-counts-container');
+    const overviewBody = document.getElementById('fleet-structure-overview-body');
+
+    function loadFleetOverview(showOverlay = false) {
+        // Stop if the element doesn't exist (e.g., user is not FC or waitlist closed)
+        if (!overviewSection) {
+            stopFleetOverviewPolling(); // Ensure polling is stopped
+            return;
+        }
+
+        // We don't use the full-screen overlay here, just show "loading" text
+        if (showOverlay) {
+            overviewCountsContainer.innerHTML = `<p style="color: #888; font-size: 0.85em; margin: 0;">Refreshing...</p>`;
+            overviewBody.innerHTML = `<p style="color: #888; font-size: 0.85em; margin: 0;">Refreshing...</p>`;
+        }
+
+        fetch("{% url 'waitlist:api_get_fleet_members' %}")
+            .then(response => {
+                if (response.status === 404) {
+                    // ESI fleet not found, stop polling
+                    overviewBody.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">ESI fleet not found. Polling stopped.</p>`;
+                    overviewCountsContainer.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Fleet Not Found</p>`;
+                    stopFleetOverviewPolling();
+                    throw new Error('Fleet not found');
+                }
+                if (!response.ok) {
+                    throw new Error('Network error');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // ---
+                    // --- NEW: Render Detailed Ship Counts (Grid Layout)
+                    // ---
+                    const counts = data.detailed_ship_counts;
+                    let countsHtml = '';
+
+                    // Helper to build a category
+                    const buildCategoryHtml = (categoryName, ships) => {
+                        // Create a block for this category
+                        let html = `<div class="ship-count-category-block">`;
+                        html += `<div class="ship-count-category">${categoryName}</div>`;
+                        html += `<ul class="ship-count-list">`;
+                        ships.forEach(ship => {
+                            html += `<li class="ship-count-item" title="${ship.name}">
+                                        <img src="https://images.evetech.net/types/${ship.type_id}/icon?size=32" alt="${ship.name}">
+                                        <span>${ship.name}</span>
+                                        <strong>${ship.count}</strong>
+                                     </li>`;
+                        });
+                        html += `</ul></div>`;
+                        return html;
+                    };
+
+                    // --- NEW: Build HTML for each grid cell ---
+                    const maraudersHtml = buildCategoryHtml('Marauders', counts.marauders);
+                    const logiHtml = buildCategoryHtml('Logistics', counts.logi);
+                    const boostersHtml = buildCategoryHtml('Boosters', counts.boosters);
+                    const vindiHtml = buildCategoryHtml('Vindicators', counts.vindicators);
+
+                    // --- NEW: Combine into grid structure ---
+                    overviewCountsContainer.innerHTML = `
+                        ${maraudersHtml}
+                        ${logiHtml}
+                        ${boostersHtml}
+                        ${vindiHtml}
+                    `;
+                    // ---
+                    // --- END NEW Ship Counts
+                    // ---
+
+                    // 2. Render Fleet Structure
+                    let structureHtml = '';
+
+                    // 1. Render Fleet Command (Boss)
+                    structureHtml += `<div class="overview-fleet-command">`;
+                    structureHtml += `<div class="overview-fc-header">
+                                        <span>${data.fleet_boss_name} (${data.total_member_count})</span>
+                                        <span class="overview-fc-star">★</span>
+                                    </div>`;
+
+                    // 2. Render Fleet Commander (Role) if one exists
+                    if (data.fleet_commander) {
+                        const fc = data.fleet_commander;
+                        structureHtml += `<div class="overview-fc-member" title="${fc.character_name} (${fc.ship_name})">${fc.character_name} <span class="overview-member-ship">(${fc.ship_name})</span></div>`;
+                    }
+                    structureHtml += `</div>`; // Close fleet-command
+
+
+                    // 3. Render Wings
+                    if (data.wings.length > 0) {
+                        data.wings.forEach(wing => {
+                            structureHtml += `<div class="overview-wing">`;
+                            structureHtml += `<div class="overview-wing-header" title="${wing.name}">${wing.name} (${wing.member_count})</div>`;
+
+                            // Render Wing Commander
+                            if (wing.wing_commander) {
+                                const wc = wing.wing_commander;
+                                structureHtml += `<div class="overview-wc" title="${wc.character_name} (${wc.ship_name})">${wc.character_name} <span class="overview-member-ship">(${wc.ship_name})</span></div>`;
+                            }
+
+                            // Render Squads
+                            wing.squads.forEach(squad => {
+                                structureHtml += `<div class="overview-squad">`;
+                                structureHtml += `<div class="overview-squad-header" title="${squad.name}">${squad.name} (${squad.member_count})</div>`;
+
+                                // Render Squad Commander
+                                if (squad.squad_commander) {
+                                    const sc = squad.squad_commander;
+                                    structureHtml += `<div class="overview-sc" title="${sc.character_name} (${sc.ship_name})">${sc.character_name} <span class="overview-member-ship">(${sc.ship_name})</span></div>`;
+                                }
+
+                                // Render Squad Members
+                                if (squad.members.length > 0) {
+                                    structureHtml += `<ul class="overview-member-list">`;
+                                    squad.members.forEach(member => {
+                                        structureHtml += `<li class="overview-member" title="${member.character_name} (${member.ship_name})">${member.character_name} <span class="overview-member-ship">(${member.ship_name})</span></li>`;
+                                    });
+                                    structureHtml += `</ul>`;
+                                }
+                                structureHtml += `</div>`;
+                            });
+                            structureHtml += `</div>`;
+                        });
+                    } else if (!data.fleet_commander) {
+                        // Only show "fleet empty" if no wings AND no FC role
+                        structureHtml += '<p style="color: #888; font-size: 0.85em; margin: 0;">Fleet is empty.</p>';
+                    }
+
+                    overviewBody.innerHTML = structureHtml;
+
+                } else {
+                    // Show error from our API
+                    overviewBody.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Error: ${data.message}</p>`;
+                    overviewCountsContainer.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Error</p>`;
+                }
+            })
+            .catch(err => {
+                if (err.message !== 'Fleet not found') {
+                    overviewBody.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Network Error: ${err.message}</p>`;
+                }
+            });
+    }
+
+    function startFleetOverviewPolling() {
+        stopFleetOverviewPolling(); // Clear any old one
+        console.log("Starting fleet overview polling (5s)...");
+        // Run immediately, then set interval
+        loadFleetOverview(true);
+        fleetOverviewInterval = setInterval(() => loadFleetOverview(false), 5000);
+    }
+
+    function stopFleetOverviewPolling() {
+        if (fleetOverviewInterval) {
+            console.log("Stopping fleet overview polling.");
+            clearInterval(fleetOverviewInterval);
+            fleetOverviewInterval = null;
+        }
+    }
+    // ---
+    // --- END NEW FLEET OVERVIEW JAVASCRIPT
+    // ---
+
+
+    // Add close listeners for the modal
+    if (fitModalOverlay) {
+        fitModalCloseBtn.addEventListener('click', closeFitModal);
+        fitModalCancelBtn.addEventListener('click', closeFitModal);
+        fitModalOverlay.addEventListener('click', (e) => {
+            if (e.target === fitModalOverlay) {
+                closeFitModal();
+            }
+        });
+    }
+
+
+    // This function sets up all our event listeners
+    function initializeWaitlist() {
+
+        // --- NEW: Add listeners for modal footer buttons ---
+        if (isFC) {
+            if(fitModalAcceptBtn) fitModalAcceptBtn.addEventListener('click', () => {
+                if (currentModalFitId) {
+                    // Reuse the existing FC action handler
+                    // We mock the 'event' object it expects
+                    const mockEvent = {
+                        target: {
+                            closest: () => ({
+                                dataset: {
+                                    fitId: currentModalFitId,
+                                    action: 'approve'
+                                }
+                            })
+                        }
+                    };
+                    handleFCAction(mockEvent);
+                    closeFitModal(); // Close modal after action
+                }
+            });
+
+            if(fitModalDenyBtn) fitModalDenyBtn.addEventListener('click', () => {
+                if (currentModalFitId) {
+                    const mockEvent = {
+                        target: {
+                            closest: () => ({
+                                dataset: {
+                                    fitId: currentModalFitId,
+                                    action: 'deny'
+                                }
+                            })
+                        }
+                    };
+                    handleFCAction(mockEvent);
+                    closeFitModal(); // Close modal after action
+                }
+            });
+        }
+        // --- END NEW ---
+
+        // --- 4. MODIFIED: Add event delegation ---
+        waitlistContainer.addEventListener('click', (event) => {
+            // Check for FC action click
+            const fcButton = event.target.closest('.fc-btn');
+            if (isFC && fcButton) {
+                // --- MODIFICATION: Route to correct handler ---
+                if (fcButton.classList.contains('btn-invite')) {
+                    handleFCInvite(event);
+                } else {
+                    handleFCAction(event);
+                }
+                // --- END MODIFICATION ---
+                return; // Stop processing
+            }
+
+            // Check for Fit Modal click
+            const fitModalButton = event.target.closest('.js-open-fit-modal');
+            if (isFC && fitModalButton) {
+                const fitId = fitModalButton.dataset.fitId;
+                openFitModal(fitId);
+                return; // Stop processing
+            }
+        });
+        // --- END MODIFICATION ---
+
+        // Run timers
+        updateWaitTimers(); // Run once on load
+        if (timerInterval) clearInterval(timerInterval); // Clear old timer
+        timerInterval = setInterval(updateWaitTimers, 10000); // Update timers every 10s
+
+        // ---
+        // --- REMOVED: Polling interval is no longer needed
+        // ---
+        // if (pollingInterval) clearInterval(pollingInterval); // Clear old poller
+        // pollingInterval = setInterval(fetchWaitlistHTML, 5000); // Poll every 5s
+    }
+
     // --- 5. PAGE INITIALIZATION ---
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -990,6 +1523,13 @@ It will be filled by the partial template on page load.
 
         // Start all the interactive parts
         initializeWaitlist();
+
+        // --- NEW: Start overview polling if FC ---
+        if (isFC && openWaitlist !== null) {
+            startFleetOverviewPolling();
+        }
+        // --- END NEW ---
+
 
         // ---
         // --- NEW: EventSource / Server-Sent Events (SSE) ---
@@ -1013,6 +1553,20 @@ It will be filled by the partial template on page load.
             // We received an update!
             // Call our existing function to refresh the HTML.
             fetchWaitlistHTML();
+
+            // --- NEW: Also check if waitlist was closed ---
+            try {
+                const data = JSON.parse(event.data);
+                if (data.action === 'close') {
+                    console.log("Waitlist closed event received, stopping overview polling.");
+                    stopFleetOverviewPolling();
+                    // Reload the page to show the "waitlist closed" message
+                    window.location.reload();
+                }
+            } catch (e) {
+                // Ignore parse error, just fetch HTML
+            }
+            // --- END NEW ---
         });
         // --- END THE FIX ---
 

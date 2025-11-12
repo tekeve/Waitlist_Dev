@@ -14,6 +14,9 @@ from .models import (
     EveCharacter, ShipFit, Fleet, FleetWaitlist,
     FleetWing, FleetSquad
 )
+# --- NEW: Import EveType ---
+from pilot.models import EveType
+# --- END NEW ---
 # Import the helper functions from our new file
 from .helpers import is_fleet_commander, get_refreshed_token_for_character, _update_fleet_structure
 
@@ -299,6 +302,213 @@ def api_get_fleet_structure(request):
 
     logger.debug(f"Returning {len(structure['wings'])} wings for fleet {fleet.id}")
     return JsonResponse({"status": "success", "structure": structure})
+
+
+@login_required
+@user_passes_test(is_fleet_commander)
+def api_get_fleet_members(request):
+    """
+    Gets the current fleet members from ESI and returns a
+    structured list with ship types and counts.
+    """
+    logger.debug(f"FC {request.user.username} getting fleet members overview")
+    open_waitlist = FleetWaitlist.objects.filter(is_open=True).first()
+    if not open_waitlist:
+        logger.debug("api_get_fleet_members: No waitlist open")
+        return JsonResponse({"status": "error", "message": "No waitlist is open."}, status=400)
+        
+    fleet = open_waitlist.fleet
+    if not fleet.esi_fleet_id or not fleet.fleet_commander:
+        logger.debug(f"api_get_fleet_members: Fleet {fleet.id} not linked")
+        return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
+
+    try:
+        # 1. Get FC token and ESI client
+        fc_character = fleet.fleet_commander
+        token = get_refreshed_token_for_character(request.user, fc_character)
+        esi = EsiClientProvider()
+        fleet_id = fleet.esi_fleet_id
+        
+        # 2. Get ESI fleet member list
+        logger.debug(f"Getting ESI fleet members for {fleet_id}")
+        esi_members = esi.client.Fleets.get_fleets_fleet_id_members(
+            fleet_id=fleet_id,
+            token=token.access_token
+        ).results()
+        
+        total_member_count = len(esi_members)
+        
+        # 3. Get all wings/squads from our DB for names
+        wings_from_db = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads').order_by('wing_id')
+        
+        # 4. Build the response structure, prepopulated with correct wing/squad names
+        processed_wings = {}
+        for wing in wings_from_db:
+            wing_id = wing.wing_id
+            processed_wings[wing_id] = {
+                "id": wing_id,
+                "name": wing.name, 
+                "member_count": 0,
+                "wing_commander": None,
+                "squads": {}
+            }
+            for squad in wing.squads.all().order_by('squad_id'):
+                squad_id = squad.squad_id
+                processed_wings[wing_id]["squads"][squad_id] = {
+                    "id": squad_id,
+                    "name": squad.name, 
+                    "member_count": 0,
+                    "squad_commander": None,
+                    "members": []
+                }
+        
+        # 5. Get all unique character and ship IDs from the ESI response
+        all_character_ids = list(set(m['character_id'] for m in esi_members))
+        all_ship_type_ids = list(set(m['ship_type_id'] for m in esi_members))
+        
+        # 6. Fetch all names/types from our local DB in two queries
+        char_names_map = {
+            c.character_id: c.character_name 
+            for c in EveCharacter.objects.filter(character_id__in=all_character_ids)
+        }
+        ship_types_map = {
+            t.type_id: t 
+            for t in EveType.objects.filter(type_id__in=all_ship_type_ids).select_related('group')
+        }
+        
+        cached_char_ids = set(char_names_map.keys())
+        missing_char_ids = [cid for cid in all_character_ids if cid not in cached_char_ids]
+        
+        if missing_char_ids:
+            logger.debug(f"Resolving {len(missing_char_ids)} unknown character names from ESI")
+            try:
+                names_response = esi.client.Universe.post_universe_names(
+                    ids=missing_char_ids
+                ).results()
+                
+                for item in names_response:
+                    if item['category'] == 'character':
+                        char_names_map[item['id']] = item['name']
+            except Exception as e:
+                logger.warning(f"Failed to resolve {len(missing_char_ids)} character names from ESI: {e}")
+
+        # ---
+        # --- NEW: Detailed Ship Count Logic
+        # ---
+        
+        # 7. Define the specific ships we want to count
+        # (type_id, name)
+        SHIPS_TO_COUNT = {
+            "marauders": [
+                (28661, "Kronos"), (28659, "Paladin"), (28665, "Vargur"), (28710, "Golem")
+            ],
+            "logi": [
+                (33472, "Nestor"), (29990, "Loki"), (11985, "Basilisk"), (11978, "Scimitar")
+            ],
+            "vindicators": [
+                (17740, "Vindicator")
+            ],
+            "boosters": [
+                (22474, "Damnation"), (22442, "Eos"), (22466, "Astarte"), 
+                (22470, "Nighthawk"), (22446, "Vulture"), (22444, "Sleipnir")
+            ]
+        }
+        
+        # 7a. Pre-populate the response dictionary
+        detailed_ship_counts = {}
+        # 7b. Create a reverse map for quick lookup: {type_id: "category"}
+        type_id_to_category_map = {}
+
+        for category, ships in SHIPS_TO_COUNT.items():
+            detailed_ship_counts[category] = []
+            for type_id, name in ships:
+                # Add to our response object
+                detailed_ship_counts[category].append({
+                    "type_id": type_id,
+                    "name": name,
+                    "count": 0
+                })
+                # Add to our reverse map
+                type_id_to_category_map[type_id] = category
+
+        fleet_commander_data = None
+        
+        # 8. Process the member list
+        for member in esi_members:
+            char_id = member['character_id']
+            ship_type_id = member['ship_type_id']
+            wing_id = member['wing_id']
+            squad_id = member['squad_id']
+            role = member['role']
+            
+            char_name = char_names_map.get(char_id, f"Unknown Char {char_id}")
+            ship_type = ship_types_map.get(ship_type_id)
+            
+            ship_name = "Unknown Ship"
+            if ship_type:
+                ship_name = ship_type.name
+
+            # --- NEW: Increment detailed counts ---
+            if ship_type_id in type_id_to_category_map:
+                category = type_id_to_category_map[ship_type_id]
+                # Find the ship in our list and increment it
+                for ship_dict in detailed_ship_counts[category]:
+                    if ship_dict["type_id"] == ship_type_id:
+                        ship_dict["count"] += 1
+                        break
+            # --- END NEW ---
+
+            member_data = {
+                "character_id": char_id,
+                "character_name": char_name,
+                "ship_type_id": ship_type_id,
+                "ship_name": ship_name,
+                "role": role
+            }
+
+            if role == 'fleet_commander':
+                fleet_commander_data = member_data
+                continue 
+
+            if wing_id in processed_wings:
+                processed_wings[wing_id]["member_count"] += 1
+                
+                if role == 'wing_commander':
+                    processed_wings[wing_id]["wing_commander"] = member_data
+                    continue 
+
+                if squad_id in processed_wings[wing_id]["squads"]:
+                    processed_wings[wing_id]["squads"][squad_id]["member_count"] += 1
+
+                    if role == 'squad_commander':
+                        processed_wings[wing_id]["squads"][squad_id]["squad_commander"] = member_data
+                    else: 
+                        processed_wings[wing_id]["squads"][squad_id]["members"].append(member_data)
+
+        # 9. Convert nested dicts to lists for JSON
+        final_wings_list = []
+        for wing_id in sorted(processed_wings.keys()):
+            wing_data = processed_wings[wing_id]
+            wing_data['squads'] = [squad_data for squad_id, squad_data in sorted(wing_data['squads'].items())]
+            final_wings_list.append(wing_data)
+
+        # 10. Prepare final response
+        logger.debug(f"Returning fleet overview: {detailed_ship_counts}")
+        return JsonResponse({
+            "status": "success",
+            "detailed_ship_counts": detailed_ship_counts, # <-- NEW
+            "wings": final_wings_list,
+            "fleet_commander": fleet_commander_data,
+            "total_member_count": total_member_count,
+            "fleet_boss_name": fleet.fleet_commander.character_name 
+        })
+
+    except HTTPNotFound:
+        logger.warning(f"api_get_fleet_members: ESI fleet {fleet_id} not found.")
+        return JsonResponse({"status": "error", "message": "ESI fleet not found. It may have been closed in-game."}, status=404)
+    except Exception as e:
+        logger.error(f"Error getting fleet members: {e}", exc_info=True)
+        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
 
 
 @login_required
