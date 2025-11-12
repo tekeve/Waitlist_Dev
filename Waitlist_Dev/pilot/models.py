@@ -27,6 +27,14 @@ class EveGroup(models.Model):
     icon_id = models.IntegerField(null=True, blank=True)
     published = models.BooleanField(default=True)
 
+    # --- THIS FIELD IS NOW IN THE CORRECT CLASS ---
+    ignore_for_rules = models.BooleanField(
+        default=False, 
+        db_index=True, 
+        help_text="If True, this group will not appear in the 'Rule Helper' page."
+    )
+    # --- END FIELD ---
+
     def __str__(self):
         return self.name
 

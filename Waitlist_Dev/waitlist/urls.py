@@ -28,6 +28,13 @@ urlpatterns = [
     path('api/fc_delete_wing/', fc_views.api_fc_delete_wing, name='api_fc_delete_wing'),
     path('api/fc_refresh_structure/', fc_views.api_fc_refresh_structure, name='api_fc_refresh_structure'),
 
+    # --- NEW: Rule Helper Page ---
+    path('fc_admin/rule_helper/', fc_views.fc_rule_helper_view, name='fc_rule_helper'),
+    path('api/fc_save_comparison_rules/', fc_views.api_fc_save_comparison_rules, name='api_fc_save_comparison_rules'),
+    # --- NEW: Ignore Group API ---
+    path('api/fc_ignore_rule_group/', fc_views.api_fc_ignore_rule_group, name='api_fc_ignore_rule_group'),
+    # --- END NEW ---
+
     # --- API / Fit views (from api_views.py) ---
     path('api/get_fit_details/', api_views.api_get_fit_details, name='api_get_fit_details'),
     path('api/get_doctrine_fit_details/', api_views.api_get_doctrine_fit_details, name='api_get_doctrine_fit_details'),

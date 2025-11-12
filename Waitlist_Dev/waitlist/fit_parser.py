@@ -347,13 +347,34 @@ def check_fit_against_doctrines(ship_type_id, submitted_fit_summary: dict):
     logger.debug(f"Pre-cached {len(dogma_attrs)} dogma attributes for comparison")
 
     # Get all ItemComparisonRules in one query
-    all_rules = ItemComparisonRule.objects.select_related('attribute').all()
-    rules_by_group = {}
-    for rule in all_rules:
-        if rule.group_id not in rules_by_group:
-            rules_by_group[rule.group_id] = []
-        rules_by_group[rule.group_id].append(rule)
-    logger.debug(f"Loaded {len(all_rules)} automatic comparison rules")
+    # ---
+    # --- NEW: Get all rules (both global and specific to this ship)
+    # ---
+    all_rules_qs = ItemComparisonRule.objects.filter(
+        models.Q(ship_type__isnull=True) | models.Q(ship_type_id=ship_type_id)
+    ).select_related('attribute')
+    
+    # We now build two rulebooks: one for specific, one for global
+    # { group_id: [rule, ...], ... }
+    specific_rules_by_group = {}
+    global_rules_by_group = {}
+    
+    for rule in all_rules_qs:
+        if rule.ship_type_id == ship_type_id:
+            # This is a ship-specific rule
+            if rule.group_id not in specific_rules_by_group:
+                specific_rules_by_group[rule.group_id] = []
+            specific_rules_by_group[rule.group_id].append(rule)
+        else:
+            # This is a global rule
+            if rule.group_id not in global_rules_by_group:
+                global_rules_by_group[rule.group_id] = []
+            global_rules_by_group[rule.group_id].append(rule)
+            
+    logger.debug(f"Loaded {len(specific_rules_by_group)} specific rule groups and {len(global_rules_by_group)} global rule groups for ship {ship_type_id}")
+    # ---
+    # --- END NEW
+    # ---
 
     # Loop through each doctrine and check for a match
     submitted_items_to_use = Counter({str(k): v for k, v in submitted_fit_summary.items()})
@@ -385,10 +406,25 @@ def check_fit_against_doctrines(ship_type_id, submitted_fit_summary: dict):
             # MODIFICATION: Use new database-driven check
             # 2. Get Automatic "Equal or Better" Substitutions
             
-            comparison_rules = rules_by_group.get(doctrine_item_type.group_id, [])
+            # ---
+            # --- NEW: Rule override logic
+            # ---
+            # Check for ship-specific rules first
+            comparison_rules = specific_rules_by_group.get(doctrine_item_type.group_id)
             
+            if comparison_rules is None:
+                # No specific rules found, fall back to global rules
+                comparison_rules = global_rules_by_group.get(doctrine_item_type.group_id, [])
+                if comparison_rules:
+                     logger.debug(f"Using {len(comparison_rules)} GLOBAL rules for group {doctrine_item_type.group.name}")
+            else:
+                 logger.debug(f"Using {len(comparison_rules)} SPECIFIC rules for group {doctrine_item_type.group.name} on ship {ship_type_id}")
+            # ---
+            # --- END NEW
+            # ---
+
             if comparison_rules: # Only run this logic if rules exist for this group
-                logger.debug(f"Found {len(comparison_rules)} auto-sub rules for group {doctrine_item_type.group.name}")
+                # logger.debug(f"Found {len(comparison_rules)} auto-sub rules for group {doctrine_item_type.group.name}")
                 for submitted_id_str, qty in submitted_items_snapshot.items():
                     submitted_item_id = int(submitted_id_str)
                     

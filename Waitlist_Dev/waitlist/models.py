@@ -408,12 +408,27 @@ class ItemComparisonRule(models.Model):
         help_text="Check if 'Higher is Better' (e.g., for damage). Uncheck if 'Lower is Better' (e.g., for 'cpuPenalty')."
     )
 
+    # --- NEW: Optional Ship Type ---
+    ship_type = models.ForeignKey(
+        'pilot.EveType',
+        on_delete=models.CASCADE,
+        related_name="ship_comparison_rules",
+        help_text="If set, this rule *only* applies to this specific ship hull.",
+        null=True,
+        blank=True
+    )
+    # --- END NEW ---
+
     class Meta:
         # Ensure we only have one rule per group/attribute combination
-        unique_together = ('group', 'attribute')
+        # --- MODIFIED: Add ship_type to unique constraint ---
+        unique_together = ('group', 'attribute', 'ship_type')
+        # --- END MODIFIED ---
 
     def __str__(self):
         comparison = "Higher is Better" if self.higher_is_better else "Lower is Better"
+        if self.ship_type:
+            return f"Rule for {self.group.name} on {self.ship_type.name}: Check {self.attribute.name} ({comparison})"
         return f"Rule for {self.group.name}: Check {self.attribute.name} ({comparison})"
 # ---
 # --- END NEW MODELS

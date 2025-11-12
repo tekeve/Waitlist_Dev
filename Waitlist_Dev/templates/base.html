@@ -463,7 +463,9 @@
             gap: 5px;
             padding: 2px 5px;
             border-radius: 4px;
-            white-space: pre; /* Keep whitespace */
+            /* --- THIS LINE WAS REMOVED --- */
+            /* white-space: pre; */
+            /* --- END REMOVAL --- */
             transition: background-color 0.3s ease, color 0.3s ease;
             position: relative; /* For sub-buttons */
             min-height: 28px; /* Ensure consistent height */
@@ -515,6 +517,13 @@
                 color: #63d471; /* Bright green text */
                 flex-wrap: wrap;
             }
+
+                /* --- THIS IS THE NEW FIX --- */
+                .fit-slot-item.fit-item-accepted-sub .fit-item-name {
+                    flex-grow: 0; /* Stop it from growing */
+                    flex-shrink: 1; /* Allow it to shrink if needed */
+                }
+        /* --- END NEW FIX --- */
 
         /* Substitution Action Buttons (Same as before) */
         .sub-action-buttons {
@@ -594,16 +603,20 @@
                 height: 20px;
             }
 
-        /* Styles for indented "Substitutes For" list */
+        /* ---
+        --- THIS IS THE FIX ---
+        --- Use flex-basis to force the wrap, matching the failure list
+        --- */
         .fit-item-sub-for-list {
             list-style: none;
-            padding: 4px 0 4px 29px;
-            margin: 4px 0 0 0;
-            width: 100%;
+            padding: 4px 0 4px 29px; /* Indent */
+            margin: 4px 0 0 0; /* Add top margin */
+            flex-basis: 100%; /* Force wrap */
             display: flex;
             flex-direction: column;
             gap: 5px;
         }
+        /* --- END THE FIX --- */
 
         .fit-item-sub-for-item {
             display: flex;
@@ -611,6 +624,7 @@
             gap: 5px;
             color: #90ee90; /* Light green text */
             font-size: 0.9em;
+            /* --- REMOVED STYLES (moved to parent ul) --- */
         }
 
             .fit-item-sub-for-item img {

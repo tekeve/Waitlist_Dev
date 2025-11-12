@@ -471,6 +471,19 @@
     <!-- This div will hold our status messages -->
     <div id="message-container"></div>
 
+    <!-- --- NEW: Link to Rule Helper --- -->
+    <div class="admin-section">
+        <a href="{% url 'waitlist:fc_rule_helper' %}" class="btn btn-primary" style="background-color: #5a3b98;">
+            Doctrine Rule Helper
+        </a>
+        <div class="form-group" style="margin-top: 10px;">
+            <p>
+                Use the Rule Helper to quickly set up the "equal or better"
+                logic for all modules in your doctrines.
+            </p>
+        </div>
+    </div>
+    <!-- --- END NEW --- -->
     {% if open_waitlist %}
     <!--
     =================================

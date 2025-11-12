@@ -235,45 +235,7 @@ class EveDogmaAttributeAdmin(admin.ModelAdmin):
     search_fields = ('name', 'attribute_id')
     list_filter = ('unit_name',)
 
-    # --- NEW: Moved get_search_results here ---
-    def get_search_results(self, request, queryset, search_term):
-        """
-        Overrides the autocomplete search.
-        
-        If we are searching for 'attribute', check if a 'group_id'
-        was passed in the request (by our custom JS).
-        """
-        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
-        
-        # Get the field name being autocompleted
-        # Note: This check is technically redundant now since this method
-        # is only for EveDogmaAttribute, but it's good practice.
-        field_name = request.GET.get('field_name')
-        
-        if field_name == 'attribute':
-            # Our custom JS adds this parameter to the request
-            group_id = request.GET.get('group_id')
-            
-            if group_id:
-                try:
-                    # 1. Get all type_ids for this group
-                    type_ids_in_group = EveType.objects.filter(group_id=group_id).values_list('type_id', flat=True)
-                    
-                    # 2. Get all unique attribute_ids for those types
-                    relevant_attr_ids = EveTypeDogmaAttribute.objects.filter(
-                        type_id__in=type_ids_in_group
-                    ).values_list('attribute_id', flat=True).distinct()
-                    
-                    # 3. Filter the attribute queryset
-                    queryset = queryset.filter(attribute_id__in=relevant_attr_ids)
-                    logger.debug(f"Filtering attributes for group {group_id}. Found {queryset.count()} relevant attributes.")
-                    
-                except Exception as e:
-                    # Log the error, but don't crash the autocomplete
-                    logger.error(f"Error filtering attribute autocomplete: {e}")
-        
-        return queryset, use_distinct
-    # --- END NEW ---
+    # --- REMOVED get_search_results method ---
 
 @admin.register(ItemComparisonRule)
 class ItemComparisonRuleAdmin(admin.ModelAdmin):
@@ -282,12 +244,8 @@ class ItemComparisonRuleAdmin(admin.ModelAdmin):
     # Add autocomplete for easier rule creation
     autocomplete_fields = ('group', 'attribute')
 
-    # --- The Media class stays here, as this is the form being rendered ---
-    class Media:
-        js = ('admin/js/admin_filter.js',)
+    # --- REMOVED Media class ---
     
-    # --- The get_search_results method has been moved ---
-
 # Register EveTypeDogmaAttribute (read-only)
 @admin.register(EveTypeDogmaAttribute)
 class EveTypeDogmaAttributeAdmin(admin.ModelAdmin):
