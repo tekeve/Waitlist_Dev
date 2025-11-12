@@ -1287,11 +1287,20 @@ It will be filled by the partial template on page load.
                     // ---
                     // --- NEW: Render Detailed Ship Counts (Grid Layout)
                     // ---
-                    const counts = data.detailed_ship_counts;
+                    const counts_list = data.detailed_ship_counts; // This is now an array
                     let countsHtml = '';
 
                     // Helper to build a category
                     const buildCategoryHtml = (categoryName, ships) => {
+                        // --- THIS IS THE FIX ---
+                        // If 'ships' is undefined (because the category was filtered out
+                        // by the backend for having 0 ships), or if the list is
+                        // empty, return an empty string.
+                        if (!ships || ships.length === 0) {
+                            return '';
+                        }
+                        // --- END THE FIX ---
+
                         // Create a block for this category
                         let html = `<div class="ship-count-category-block">`;
                         html += `<div class="ship-count-category">${categoryName}</div>`;
@@ -1307,21 +1316,25 @@ It will be filled by the partial template on page load.
                         return html;
                     };
 
-                    // --- NEW: Build HTML for each grid cell ---
-                    const maraudersHtml = buildCategoryHtml('Marauders', counts.marauders);
-                    const logiHtml = buildCategoryHtml('Logistics', counts.logi);
-                    const boostersHtml = buildCategoryHtml('Boosters', counts.boosters);
-                    const vindiHtml = buildCategoryHtml('Vindicators', counts.vindicators);
+                    // ---
+                    // --- MODIFICATION: Dynamically loop categories
+                    // ---
+                    if (counts_list && counts_list.length > 0) {
+                        counts_list.forEach(category_data => {
+                            // category_data = { key: "marauders", name: "Marauders", ships: [...] }
+                            countsHtml += buildCategoryHtml(category_data.name, category_data.ships);
+                        });
+                    }
+
+                    if (countsHtml === '') {
+                        // Show a message if no ships are being counted or in fleet
+                        countsHtml = '<p style="color: #888; font-size: 0.85em; margin: 0; grid-column: 1 / -1;">No tracked ships in fleet.</p>';
+                    }
 
                     // --- NEW: Combine into grid structure ---
-                    overviewCountsContainer.innerHTML = `
-                        ${maraudersHtml}
-                        ${logiHtml}
-                        ${boostersHtml}
-                        ${vindiHtml}
-                    `;
+                    overviewCountsContainer.innerHTML = countsHtml;
                     // ---
-                    // --- END NEW Ship Counts
+                    // --- END MODIFICATION
                     // ---
 
                     // 2. Render Fleet Structure

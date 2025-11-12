@@ -1,5 +1,6 @@
 import logging
 import json
+import os # <-- Import os
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
@@ -393,43 +394,71 @@ def api_get_fleet_members(request):
                 logger.warning(f"Failed to resolve {len(missing_char_ids)} character names from ESI: {e}")
 
         # ---
-        # --- NEW: Detailed Ship Count Logic
+        # --- MODIFICATION: Dynamically build ship counts
         # ---
         
-        # 7. Define the specific ships we want to count
-        # (type_id, name)
-        SHIPS_TO_COUNT = {
-            "marauders": [
-                (28661, "Kronos"), (28659, "Paladin"), (28665, "Vargur"), (28710, "Golem")
-            ],
-            "logi": [
-                (33472, "Nestor"), (29990, "Loki"), (11985, "Basilisk"), (11978, "Scimitar")
-            ],
-            "vindicators": [
-                (17740, "Vindicator")
-            ],
-            "boosters": [
-                (22474, "Damnation"), (22442, "Eos"), (22466, "Astarte"), 
-                (22470, "Nighthawk"), (22446, "Vulture"), (22444, "Sleipnir")
-            ]
-        }
+        # 7. Get the category keys and display names from .env
+        category_keys_str = os.environ.get("FLEET_OVERVIEW_CATEGORIES", "")
+        category_names_str = os.environ.get("FLEET_OVERVIEW_CATEGORY_NAMES", "")
         
-        # 7a. Pre-populate the response dictionary
+        category_keys = [key.strip().upper() for key in category_keys_str.split(',') if key.strip()]
+        category_names = [name.strip() for name in category_names_str.split(',') if name.strip()]
+        
+        # Ensure we have a name for every key
+        if len(category_keys) != len(category_names):
+            logger.error("FLEET_OVERVIEW_CATEGORIES and FLEET_OVERVIEW_CATEGORY_NAMES have a different number of items!")
+            # Use keys as fallback names
+            category_names = [key.title() for key in category_keys]
+            
+        # Zip them together
+        categories_to_load = list(zip(category_keys, category_names))
+        
+        SHIP_NAMES_TO_COUNT = {}
+        
+        for key_upper, display_name in categories_to_load:
+            # Get the comma-separated string from .env for this key, default to empty string
+            ship_list_str = os.environ.get(f"FLEET_OVERVIEW_{key_upper}", "")
+            # Split the string by comma, strip whitespace, and filter out empty strings
+            ship_names = [name.strip() for name in ship_list_str.split(',') if name.strip()]
+            
+            if ship_names:
+                # Use the lowercase key for our internal dictionary
+                SHIP_NAMES_TO_COUNT[key_upper.lower()] = ship_names
+        
+        # 7a. Get all names into a flat list
+        all_ship_names_to_find = [name for names_list in SHIP_NAMES_TO_COUNT.values() for name in names_list]
+
+        # 7b. Query the DB for these types
+        ship_types_from_db = EveType.objects.filter(name__in=all_ship_names_to_find)
+        
+        # 7c. Create a name-to-type map for easy lookup
+        name_to_type_map = {t.name: t for t in ship_types_from_db}
+        
+        # 7d. Pre-populate the response dictionary and reverse map
         detailed_ship_counts = {}
-        # 7b. Create a reverse map for quick lookup: {type_id: "category"}
         type_id_to_category_map = {}
 
-        for category, ships in SHIPS_TO_COUNT.items():
-            detailed_ship_counts[category] = []
-            for type_id, name in ships:
-                # Add to our response object
-                detailed_ship_counts[category].append({
-                    "type_id": type_id,
-                    "name": name,
-                    "count": 0
-                })
-                # Add to our reverse map
-                type_id_to_category_map[type_id] = category
+        # 7d. Loop through our *new* dynamic structure to populate counts
+        for key_lower, ship_names in SHIP_NAMES_TO_COUNT.items():
+            detailed_ship_counts[key_lower] = []
+            for name in ship_names:
+                ship_type = name_to_type_map.get(name)
+                if ship_type:
+                    # Add to our response object
+                    detailed_ship_counts[key_lower].append({
+                        "type_id": ship_type.type_id,
+                        "name": ship_type.name,
+                        "count": 0
+                    })
+                    # Add to our reverse map
+                    type_id_to_category_map[ship_type.type_id] = key_lower
+                else:
+                    # This name is in our list but not in the SDE
+                    logger.warning(f"Fleet overview: Ship name '{name}' not found in local EveType SDE.")
+
+        # ---
+        # --- END MODIFICATION
+        # ---
 
         fleet_commander_data = None
         
@@ -448,7 +477,7 @@ def api_get_fleet_members(request):
             if ship_type:
                 ship_name = ship_type.name
 
-            # --- NEW: Increment detailed counts ---
+            # --- Increment detailed counts ---
             if ship_type_id in type_id_to_category_map:
                 category = type_id_to_category_map[ship_type_id]
                 # Find the ship in our list and increment it
@@ -456,7 +485,7 @@ def api_get_fleet_members(request):
                     if ship_dict["type_id"] == ship_type_id:
                         ship_dict["count"] += 1
                         break
-            # --- END NEW ---
+            # --- END ---
 
             member_data = {
                 "character_id": char_id,
@@ -492,11 +521,47 @@ def api_get_fleet_members(request):
             wing_data['squads'] = [squad_data for squad_id, squad_data in sorted(wing_data['squads'].items())]
             final_wings_list.append(wing_data)
 
+        # ---
+        # --- MODIFICATION: Filter ship counts, but keep "always show" ships
+        # ---
+        
+        # 1. Get the set of names to always show
+        always_show_names_str = os.environ.get("FLEET_OVERVIEW_ALWAYS_SHOW", "")
+        always_show_names = set([name.strip() for name in always_show_names_str.split(',') if name.strip()])
+        logger.debug(f"Always showing ships: {always_show_names}")
+
+        # --- MODIFICATION: Build a list of dicts for the response ---
+        final_detailed_ship_counts_list = []
+        
+        # Use categories_to_load to preserve the order from the .env file
+        for key_upper, display_name in categories_to_load:
+            key_lower = key_upper.lower()
+            
+            if key_lower in detailed_ship_counts:
+                ships_list = detailed_ship_counts[key_lower]
+                
+                # Filter the list to include ships if count > 0 OR name is in always_show_names
+                ships_to_show = [
+                    ship for ship in ships_list 
+                    if ship["count"] > 0 or ship["name"] in always_show_names
+                ]
+                
+                # Only add the category to the final list if it's not empty
+                if ships_to_show:
+                    final_detailed_ship_counts_list.append({
+                        "key": key_lower,
+                        "name": display_name,
+                        "ships": ships_to_show
+                    })
+        # ---
+        # --- END MODIFICATION
+        # ---
+
         # 10. Prepare final response
-        logger.debug(f"Returning fleet overview: {detailed_ship_counts}")
+        logger.debug(f"Returning fleet overview: {final_detailed_ship_counts_list}")
         return JsonResponse({
             "status": "success",
-            "detailed_ship_counts": detailed_ship_counts, # <-- NEW
+            "detailed_ship_counts": final_detailed_ship_counts_list, # <-- MODIFIED
             "wings": final_wings_list,
             "fleet_commander": fleet_commander_data,
             "total_member_count": total_member_count,
