@@ -5,6 +5,9 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse, HttpResponseBadRequest, Http404
+# --- THIS IS THE FIX ---
+from django.db import models
+# --- END THE FIX ---
 
 from .models import (
     ShipFit, DoctrineFit, FitSubstitutionGroup,
@@ -301,13 +304,32 @@ def api_get_fit_details(request):
         logger.debug(f"Pre-cached {len(dogma_attrs)} dogma attributes for {len(item_types_map)} types")
 
         # Get all ItemComparisonRules in one query
-        all_rules = ItemComparisonRule.objects.select_related('attribute').all()
-        rules_by_group = {}
-        for rule in all_rules:
-            if rule.group_id not in rules_by_group:
-                rules_by_group[rule.group_id] = []
-            rules_by_group[rule.group_id].append(rule)
-        logger.debug(f"Loaded {len(all_rules)} automatic comparison rules")
+        # ---
+        # --- THIS IS THE FIX: Use the same prioritized rule logic as fit_parser.py ---
+        # ---
+        all_rules_qs = ItemComparisonRule.objects.filter(
+            models.Q(ship_type__isnull=True) | models.Q(ship_type_id=fit.ship_type_id)
+        ).select_related('attribute')
+        
+        specific_rules_by_group = {}
+        global_rules_by_group = {}
+        
+        for rule in all_rules_qs:
+            if rule.ship_type_id == fit.ship_type_id:
+                # This is a ship-specific rule
+                if rule.group_id not in specific_rules_by_group:
+                    specific_rules_by_group[rule.group_id] = []
+                specific_rules_by_group[rule.group_id].append(rule)
+            else:
+                # This is a global rule
+                if rule.group_id not in global_rules_by_group:
+                    global_rules_by_group[rule.group_id] = []
+                global_rules_by_group[rule.group_id].append(rule)
+                
+        logger.debug(f"Loaded {len(specific_rules_by_group)} specific rule groups and {len(global_rules_by_group)} global rule groups")
+        # ---
+        # --- END THE FIX ---
+        # ---
 
         # 4c. Create bins to sort items into
         item_bins = {
@@ -374,9 +396,16 @@ def api_get_fit_details(request):
                     elif (item_type and item_type.group_id):
                         # Automatic "Equal or Better" Check
                         found_match = False
-                        for doctrine_id_str, missing_qty in doctrine_items_to_fill_copy.items():
-                            if missing_qty <= 0:
-                                continue
+                        # ---
+                        # --- THIS IS THE FIX (Part 1):
+                        # --- Loop over the *original* doctrine list, not the copy.
+                        for doctrine_id_str, doctrine_qty in doctrine_items_to_fill.items():
+                        # --- END THE FIX ---
+                            
+                            # --- MODIFIED: Remove check on missing_qty ---
+                            # if missing_qty <= 0:
+                            #     continue
+                            # --- END MODIFIED ---
                             
                             doctrine_item_type = item_types_map.get(int(doctrine_id_str))
                             if not doctrine_item_type or not doctrine_item_type.group:
@@ -388,7 +417,17 @@ def api_get_fit_details(request):
                             # Check if they are in the same GROUP (e.g. both are 'Shield Hardener')
                             if (doctrine_item_type.group_id == item_type.group_id):
                             
-                                comparison_rules = rules_by_group.get(doctrine_item_type.group_id, [])
+                                # ---
+                                # --- THIS IS THE FIX: Use prioritized rule lookup
+                                # ---
+                                comparison_rules = specific_rules_by_group.get(doctrine_item_type.group_id)
+            
+                                if comparison_rules is None:
+                                    # No specific rules found, fall back to global rules
+                                    comparison_rules = global_rules_by_group.get(doctrine_item_type.group_id, [])
+                                # ---
+                                # --- END THE FIX ---
+                                # ---
                                 
                                 if not comparison_rules:
                                     # ---
@@ -421,6 +460,8 @@ def api_get_fit_details(request):
                                                 "doctrine_value": doctrine_val,
                                                 "submitted_value": submitted_val
                                             })
+                                            # --- BUG FIX: Remove break ---
+                                            # --- END BUG FIX ---
                                     else: # Lower is better
                                         if submitted_val > doctrine_val:
                                             is_equal_or_better = False
@@ -429,16 +470,30 @@ def api_get_fit_details(request):
                                                 "doctrine_value": doctrine_val,
                                                 "submitted_value": submitted_val
                                             })
+                                            # --- BUG FIX: Remove break ---
+                                            # --- END BUG FIX ---
                                 
                                 if is_equal_or_better:
-                                    item_obj['status'] = 'accepted_sub'
-                                    item_obj['substitutes_for'] = [{
-                                        "name": doctrine_item_type.name,
-                                        "type_id": doctrine_item_type.type_id,
-                                        "icon_url": f"https://images.evetech.net/types/{doctrine_item_type.type_id}/icon?size=32",
-                                        "quantity": doctrine_items_to_fill.get(str(doctrine_item_type.type_id), 0)
-                                    }]
-                                    doctrine_items_to_fill_copy[doctrine_id_str] -= qty_in_fit
+                                    # ---
+                                    # --- THIS IS THE FIX (Part 2):
+                                    # --- Check if the slot is still available in our "copy" list
+                                    if doctrine_items_to_fill_copy.get(doctrine_id_str, 0) > 0:
+                                        # Slot is available, consume it
+                                        item_obj['status'] = 'accepted_sub'
+                                        item_obj['substitutes_for'] = [{
+                                            "name": doctrine_item_type.name,
+                                            "type_id": doctrine_item_type.type_id,
+                                            "icon_url": f"https://images.evetech.net/types/{doctrine_item_type.type_id}/icon?size=32",
+                                            "quantity": doctrine_items_to_fill.get(str(doctrine_item_type.type_id), 0)
+                                        }]
+                                        doctrine_items_to_fill_copy[doctrine_id_str] -= qty_in_fit
+                                    else:
+                                        # This is a valid sub, but the slot is already filled.
+                                        # Mark as a problem (extra item).
+                                        item_obj['status'] = 'problem'
+                                    # ---
+                                    # --- END THE FIX ---
+                                    # ---
                                     found_match = True
                                     break # This break is CORRECT (we found a valid sub)
                                 else:
@@ -472,22 +527,39 @@ def api_get_fit_details(request):
                     not item_obj['failure_reasons'] and 
                     item_type and item_type.group_id):
                     
-                    missing_ids_in_group = {
-                        int(m_id_str) for m_id_str, qty in doctrine_items_to_fill_copy.items() 
-                        if qty > 0
+                    # ---
+                    # --- THIS IS THE FIX ---
+                    # ---
+                    # This item is a problem, but we didn't find a direct
+                    # doctrine item it was trying (and failing) to replace.
+                    # This can happen if it's an "extra" item and the doctrine
+                    # slots for its group are already filled.
+                    #
+                    # We now check the *original* doctrine list (`doctrine_items_to_fill`)
+                    # instead of the *remaining* list (`doctrine_items_to_fill_copy`)
+                    # to find potential matches.
+                    
+                    # Find all doctrine items in the same group
+                    all_doctrine_ids_in_group = {
+                        int(m_id_str) for m_id_str in doctrine_items_to_fill.keys() # Use original list
                     }
-                    if missing_ids_in_group:
+                    if all_doctrine_ids_in_group:
+                        # Find which of those are in the same group as our problem item
                         missing_in_group = EveType.objects.filter(
                             group_id=item_type.group_id,
-                            type_id__in=missing_ids_in_group
+                            type_id__in=all_doctrine_ids_in_group # Check against all doctrine items
                         )
                         for m_type in missing_in_group:
                             item_obj['potential_matches'].append({
                                 "name": m_type.name, 
                                 "type_id": m_type.type_id, 
                                 "icon_url": f"https://images.evetech.net/types/{m_type.type_id}/icon?size=32",
-                                "quantity": doctrine_items_to_fill_copy.get(str(m_type.type_id), 0)
+                                # Get quantity from original doctrine list
+                                "quantity": doctrine_items_to_fill.get(str(m_type.type_id), 0) 
                             })
+                    # ---
+                    # --- END THE FIX ---
+                    # ---
             # --- End Comparison Logic ---
 
             # Add to bin
