@@ -707,39 +707,11 @@
             }
         /* --- END NEW --- */
 
-        /* --- NEW: Doctrine Fit Modal Footer --- */
-        #doctrine-fit-modal-overlay .modal-footer {
-            justify-content: flex-end; /* Align buttons right */
-        }
+        /* --- MODIFICATION: REMOVED DOCTRINE FIT MODAL FOOTER STYLES --- */
 
-        /* --- NEW: Copy Button Style (re-used) --- */
-        .btn-copy-eft {
-            padding: 8px 16px;
-            background-color: #a67c00;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 0.9em;
-            transition: background-color 0.2s;
-            cursor: pointer;
-            border: none;
-        }
+        /* --- MODIFICATION: REMOVED COPY BUTTON STYLES --- */
 
-            .btn-copy-eft:hover {
-                background-color: #c99900;
-            }
-
-        /* --- NEW: Hidden Textarea for Copying --- */
-        .hidden-eft-fit {
-            position: absolute;
-            left: -9999px;
-            top: 0;
-            width: 1px;
-            height: 1px;
-            opacity: 0;
-        }
-        /* --- END NEW --- */
+        /* --- MODIFICATION: REMOVED HIDDEN TEXTAREA STYLES --- */
     </style>
 
     <!--
@@ -763,12 +735,7 @@
             Home
         </a>
 
-        <!-- --- NEW: Fittings Button --- -->
-        <!-- This is visible to all logged-in users -->
-        <a href="{% url 'waitlist:fittings_view' %}" class="header-btn" style="background-color: #5a3b98;" title="View Doctrine Fittings">
-            Fittings
-        </a>
-        <!-- --- END NEW --- -->
+        <!-- --- MODIFICATION: REMOVED FITTINGS BUTTON --- -->
         <!-- --- FC ADMIN LINKS --- -->
         <!--
         The 'is_fc' variable is passed from the home view.
@@ -922,38 +889,8 @@
         </div>
     </div>
     <!-- --- END NEW FC MODAL --- -->
-    <!-- ---
-    --- NEW: DOCTRINE FIT MODAL (for public fittings page)
-    ---
-    -->
-    <div class="modal-overlay" id="doctrine-fit-modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="doctrine-fit-modal-title">Fit Details</h2>
-                <button class="modal-close-btn" id="doctrine-fit-modal-close-btn">&times;</button>
-            </div>
-
-            <!-- Body is populated by JS -->
-            <div class="modal-body" id="doctrine-fit-modal-body">
-                <div class="modal-spinner"></div>
-            </div>
-
-            <div class="modal-footer">
-                <!-- Buttons are aligned right by default -->
-                <div class="modal-actions">
-                    <button class="header-btn add-alt-btn" id="doctrine-fit-modal-cancel-btn">Close</button>
-                    <button class="btn-copy-eft" id="doctrine-fit-modal-copy-btn">Copy EFT Fit</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- This is the hidden textarea for the copy button -->
-    <textarea class="hidden-eft-fit" id="doctrine-fit-copy-textarea" readonly></textarea>
-    <!--
-    ---
-    --- END NEW DOCTRINE FIT MODAL
-    ---
-    -->
+    <!-- --- MODIFICATION: REMOVED DOCTRINE FIT MODAL --- -->
+    <!-- --- MODIFICATION: REMOVED HIDDEN COPY TEXTAREA --- -->
     <!--
     ---
     --- NEW: CUSTOM CONFIRM MODAL (MOVED FROM waitlist_view.html) ---
@@ -1232,175 +1169,8 @@
 
 
         // ---
-        // --- NEW: DOCTRINE FIT MODAL (PUBLIC) JAVASCRIPT
+        // --- MODIFICATION: REMOVED DOCTRINE FIT MODAL JAVASCRIPT ---
         // ---
-        document.addEventListener('DOMContentLoaded', () => {
-            const modalOverlay = document.getElementById('doctrine-fit-modal-overlay');
-            const modalTitle = document.getElementById('doctrine-fit-modal-title');
-            const modalBody = document.getElementById('doctrine-fit-modal-body');
-            const closeBtn = document.getElementById('doctrine-fit-modal-close-btn');
-            const cancelBtn = document.getElementById('doctrine-fit-modal-cancel-btn');
-            const copyBtn = document.getElementById('doctrine-fit-modal-copy-btn');
-            const copyTextarea = document.getElementById('doctrine-fit-copy-textarea');
-
-            // ---
-            // --- NEW: HTML Builder Function for Slotted Fits
-            // ---
-            function buildSlottedFitHtml(data) {
-                const fit = data.slotted_fit;
-                if (!fit || !fit.ship || !fit.slots) {
-                    return '<p style="color: #ff8a8a; padding: 20px;">Error: Invalid fit data received.</p>';
-                }
-
-                let html = '<div class="fit-modal-layout">';
-
-                // --- 1. Ship Render Column (REMOVED) ---
-
-                // --- 2. Slot Banks Column ---
-                html += '<div class="fit-modal-slot-banks">';
-
-                const slotOrder = ['high', 'mid', 'low', 'rig', 'subsystem', 'drone', 'cargo'];
-                const slotNames = {
-                    high: 'High Slots', mid: 'Mid Slots', low: 'Low Slots',
-                    rig: 'Rig Slots', subsystem: 'Subsystem Slots',
-                    drone: 'Drones', cargo: 'Cargo Hold'
-                };
-
-                slotOrder.forEach(slotKey => {
-                    const items = fit.slots[slotKey];
-                    const count = fit.slot_counts[slotKey] || 0;
-
-                    if (!items || items.length === 0) {
-                        return; // Don't render empty sections
-                    }
-
-                    // Build header (e.g., "High Slots (8)")
-                    html += '<div class="fit-slot-bank">';
-                    html += '<div class="fit-slot-bank-header">';
-                    html += `${slotNames[slotKey]} `;
-                    // Show (x/y) count only for non-T3C, non-drone/cargo slots
-                    if (!fit.is_t3c && slotKey !== 'drone' && slotKey !== 'cargo') {
-                         const fitted_count = items.filter(i => !i.is_empty).length;
-                         html += `<span>(${fitted_count} / ${count})</span>`;
-                    }
-                    html += '</div>';
-
-                    // Build item list
-                    html += '<ul class="fit-slot-list">';
-                    items.forEach(item => {
-                        let itemClass = item.is_empty ? 'is-empty' : '';
-
-                        // --- This is for the FC modal, but we add it here
-                        // --- so the simple builder can ignore it.
-                        if (item.status) {
-                            itemClass += ` fit-item-${item.status}`;
-                        }
-
-                        html += `<li class="fit-slot-item ${itemClass}" title="${item.name}">`;
-
-                        if (item.is_empty) {
-                            html += `<img src="https://images.evetech.net/types/2965/icon?size=32" alt="Empty Slot" class="fit-modal-icon" style="opacity: 0.2;">`; // Placeholder icon
-                            html += `<span class="fit-item-name">${item.name}</span>`;
-                        } else {
-                            // --- *** THIS IS THE FIX: Check for icon_url *** ---
-                            // If the parsed_fit_json is old (pre-SDE), it might be missing
-                            // We fall back to building it from the type_id
-                            const icon_url = item.icon_url || `https://images.evetech.net/types/${item.type_id}/icon?size=32`;
-                            html += `<img src="${icon_url}" alt="${item.name}" class="fit-modal-icon">`;
-                            // --- *** END THE FIX *** ---
-
-                            // Use raw_line for accurate text, fallback to name
-                            const line_text = item.raw_line || item.name;
-                            const safe_line = line_text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                            html += `<span class="fit-item-name">${safe_line}</span>`;
-                        }
-
-                        // --- Logic for FC modal comparison (ignored by simple modal) ---
-                        // (This will be built by the more complex function in waitlist_view.html)
-
-                        html += '</li>';
-                    });
-                    html += '</ul></div>'; // Close bank
-                });
-
-                html += '</div>'; // Close slot-banks
-                html += '</div>'; // Close fit-modal-layout
-                return html;
-            }
-            // ---
-            // --- END NEW HTML Builder
-            // ---
-
-
-            // This function will be attached to buttons in fittings_view.html
-            // We make it global so it can be accessed from the other template.
-            window.openDoctrineFitModal = (fitId) => {
-                if (!modalOverlay) return;
-
-                // 1. Show modal with spinner
-                modalTitle.textContent = "Loading Fit...";
-                modalBody.innerHTML = '<div class="modal-spinner"></div>';
-                copyBtn.disabled = true; // Disable copy button while loading
-                modalOverlay.classList.add('show');
-
-                // 2. Fetch fit details
-                fetch(`{% url 'waitlist:api_get_doctrine_fit_details' %}?fit_id=${fitId}`)
-                    .then(response => {
-                        if (!response.ok) throw new Error('Network error');
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.status !== 'success') throw new Error(data.message);
-
-                        // 3. Populate modal content
-                        modalTitle.textContent = data.name;
-
-                        // 4. --- MODIFIED: Use new HTML builder ---
-                        modalBody.innerHTML = buildSlottedFitHtml(data);
-                        // --- END MODIFICATION ---
-
-                        // 5. Populate hidden textarea for copying
-                        copyTextarea.value = data.raw_eft;
-                        copyBtn.disabled = false;
-                        copyBtn.textContent = 'Copy EFT Fit'; // Reset button text
-
-                    })
-                    .catch(error => {
-                        modalTitle.textContent = "Error";
-                        modalBody.innerHTML = `<p style="color: #ff8a8a; padding: 20px;">Error: ${error.message}</p>`;
-                    });
-            };
-
-            // 6. Add modal close listeners
-            const closeModal = () => {
-                if (modalOverlay) modalOverlay.classList.remove('show');
-            };
-            if(closeBtn) closeBtn.addEventListener('click', closeModal);
-            if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
-            if(modalOverlay) modalOverlay.addEventListener('click', (e) => {
-                if (e.target === modalOverlay) closeModal();
-            });
-
-            // 7. Add copy button listener
-            if(copyBtn) copyBtn.addEventListener('click', () => {
-                try {
-                    copyTextarea.select();
-                    document.execCommand('copy');
-
-                    copyBtn.textContent = 'Copied!';
-                    setTimeout(() => {
-                        copyBtn.textContent = 'Copy EFT Fit';
-                    }, 2000);
-                } catch (err) {
-                    console.error('Failed to copy text: ', err);
-                    copyBtn.textContent = 'Failed to Copy';
-                }
-            });
-        });
-        // ---
-        // --- END DOCTRINE FIT MODAL JAVASCRIPT
-        // ---
-
     </script>
 
 

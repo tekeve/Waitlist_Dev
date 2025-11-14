@@ -1,11 +1,8 @@
 ﻿{% extends "base.html" %}
 {% load humanize %}
 
-<!-- This sets the page title -->
 {% block title %}EVE Waitlist - View{% endblock %}
 
-
-<!-- These styles are specific to the waitlist view -->
 {% block styles %}
 <style>
     .waitlist-container {
@@ -13,9 +10,7 @@
         flex-direction: row;
         gap: 10px;
         padding: 10px;
-        /* Allow horizontal scrolling on small screens */
         overflow-x: auto;
-        /* Set a height so vertical scrollbars appear inside columns */
         height: calc(100vh - var(--header-height) - 20px); /* Full height minus header */
     }
 
@@ -27,7 +22,6 @@
         flex-direction: column;
         background: none; /* MODIFIED: Removed column background */
         border-radius: 8px;
-        /* Handle vertical overflow */
         height: 100%;
     }
 
@@ -54,7 +48,6 @@
         border-radius: 5px;
     }
 
-    /* Column Header Colors */
     .status-PENDING {
         border-top: 3px solid #ffc107;
     }
@@ -63,33 +56,26 @@
         border-top: 3px solid #28a745;
     }
 
-    /* --- NEW: In Fleet Status --- */
     .status-IN_FLEET {
         border-top: 3px solid #3b5998;
     }
 
-    /* --- NEW: Fleet Overview Column Styles (from fc_admin.html) --- */
     .column-header.status-OVERVIEW {
         border-top: 3px solid #3b98d9; /* EVE Blue */
     }
 
-    /* ---
-    --- NEW: Detailed Ship Count Styles
-    --- */
     .fleet-ship-counts {
         /* This is now the main container */
         background: #2a2a2a;
         padding: 10px;
         border-radius: 8px;
         margin-bottom: 10px;
-        /* --- NEW: Use CSS Grid for 2x2 layout --- */
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px; /* Spacing between grid items */
     }
 
     .ship-count-category-block {
-        /* This is the new wrapper for a category */
         min-width: 0; /* Prevents overflow issues */
     }
 
@@ -137,20 +123,15 @@
             color: #fff;
             font-size: 1.1em;
         }
-    /* ---
-    --- END NEW Detailed Ship Count Styles
-    --- */
 
     .fleet-structure-overview {
         font-family: 'Consolas', 'Monaco', monospace;
         font-size: 0.9em; /* Smaller font */
-        /* Let it fill the available space */
         flex-grow: 1;
         overflow-y: auto;
         background: #2a2a2a;
         padding: 8px;
         border-radius: 8px;
-        /* Scrollbar styling */
     }
 
         .fleet-structure-overview::-webkit-scrollbar {
@@ -171,7 +152,6 @@
                 background: #666;
             }
 
-    /* --- NEW: FC SECTION --- */
     .overview-fleet-command {
         margin-bottom: 8px;
         background: #3a3a3a;
@@ -186,12 +166,11 @@
         margin-bottom: 4px;
         border-bottom: 1px solid #555;
         padding-bottom: 4px;
-        /* --- NEW: Flex for star --- */
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
-    /* --- NEW: Gray star --- */
+
     .overview-fc-star {
         color: #999;
         font-size: 1.2em;
@@ -201,22 +180,18 @@
         list-style: none;
         padding: 0 0 0 5px; /* Indent slightly */
         margin: 0;
-        /* --- NEW: Add color --- */
         color: #3b98d9; /* EVE Blue */
         font-weight: 500;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    /* --- END NEW --- */
 
-    /* --- NEW: Ship name in overview --- */
     .overview-member-ship {
         color: #aaa;
         font-style: italic;
         margin-left: 5px;
     }
-    /* --- END NEW --- */
 
     .overview-wing {
         margin-bottom: 8px;
@@ -230,7 +205,6 @@
     }
 
     .overview-squad {
-        /* remove default indent */
         margin-bottom: 4px;
     }
 
@@ -246,7 +220,6 @@
         margin: 0;
     }
 
-    /* --- NEW: Indentation classes --- */
     .overview-wc { /* Wing Commander */
         padding-left: 15px;
         color: #3b98d9;
@@ -277,19 +250,15 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    /* --- END NEW --- */
-
 
     .fit-card-list {
         list-style: none;
         padding: 5px; /* MODIFIED: Was 8px */
         margin: 0;
-        /* Make the list scrollable, not the whole column */
         overflow-y: auto;
         height: 100%;
     }
 
-        /* Scrollbar styling */
         .fit-card-list::-webkit-scrollbar {
             width: 8px;
         }
@@ -315,7 +284,6 @@
         border-radius: 5px;
         margin-bottom: 5px; /* MODIFIED: Was 8px */
         box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* MODIFIED: Re-added shadow */
-        /* --- NEW: Transition for invite --- */
         transition: opacity 0.5s ease;
     }
 
@@ -348,7 +316,6 @@
         text-overflow: ellipsis;
     }
 
-    /* --- NEW: Wait Timer Style --- */
     .wait-timer {
         font-size: 0.8em;
         font-weight: bold;
@@ -359,7 +326,6 @@
         border-radius: 4px;
     }
 
-    /* --- NEW: In Fleet Timer Style --- */
     .fit-card.status-IN_FLEET .wait-timer {
         color: #63d471; /* Green */
     }
@@ -369,7 +335,6 @@
         font-size: 0.9em;
     }
 
-    /* --- NEW: Layout for fit info + ship image --- */
     .card-body-row {
         display: flex;
         justify-content: space-between;
@@ -385,7 +350,6 @@
 
     .ship-image-container {
         flex-shrink: 0; /* Don't shrink */
-        /* --- NEW: Add cursor for clickable --- */
         cursor: pointer;
         border-radius: 5px;
         padding: 4px;
@@ -401,14 +365,11 @@
             height: 56px; /* MODIFIED: Was 64px */
             display: block; /* Remove bottom space */
         }
-    /* --- END NEW --- */
-
 
     .fit-info {
         display: flex;
         justify-content: space-between;
         margin-bottom: 4px;
-        /* --- MODIFIED: Justify left --- */
         justify-content: flex-start;
         gap: 5px;
     }
@@ -421,11 +382,9 @@
         .fit-info .placeholder {
             color: #ddd;
             font-weight: 500;
-            /* --- Allow text to wrap --- */
             white-space: normal;
             overflow: hidden;
             text-overflow: ellipsis;
-            /* --- Justify left --- */
             text-align: left;
         }
 
@@ -437,7 +396,7 @@
         .fit-issues strong {
             color: #ffc107;
         }
-        /* Yellow */
+
         .fit-issues .placeholder {
             color: #ffc107;
         }
@@ -464,14 +423,12 @@
             font-weight: 600;
         }
 
-    /* --- NEW: FC Action Bar --- */
     .fc-actions {
         display: flex;
         gap: 5px;
         border-top: 0px solid #444;
-        padding: 6px 8px 4px 8px; /* MODIFIED: Was 8px 10px 5px 10px */
-        margin-top: 8px; /* MODIFIED: Was 10px */
-        /* --- MODIFIED: Align buttons to the right --- */
+        padding: 6px 8px 4px 8px;
+        margin-top: 8px;
         justify-content: flex-end;
     }
 
@@ -483,7 +440,6 @@
         font-weight: bold;
         cursor: pointer;
         padding: 5px 8px;
-        /* --- MODIFIED: Slightly larger emoji --- */
         font-size: 1.1em;
         line-height: 1;
         transition: background-color 0.2s, transform 0.1s;
@@ -515,7 +471,6 @@
             background-color: #e64a58;
         }
 
-    /* --- NEW: Invite Button --- */
     .btn-invite {
         background-color: #3b5998;
         font-size: 0.9em; /* Make text fit */
@@ -536,27 +491,14 @@
 </style>
 {% endblock %}
 
-
 {% block content %}
-<!--
-This container will be the target for our live polling.
-It will be filled by the partial template on page load.
--->
 <div class="waitlist-container" id="waitlist-container-live">
     {% include "_waitlist_columns.html" %}
-
-    <!--
-    ---
-    --- NEW: FLEET OVERVIEW COLUMN
-    ---
-    -->
     {% if is_fc and open_waitlist %}
     <div class="waitlist-column" id="fleet-overview-column">
         <div class="column-header status-OVERVIEW">
             <h2>Fleet Overview</h2>
-            <!-- Refresh button can be added here if needed -->
         </div>
-        <!-- --- MODIFIED: Container for new detailed list --- -->
         <div class="fleet-ship-counts" id="fleet-ship-counts-container">
             <p style="color: #888; font-size: 0.85em; margin: 0;">Loading ship counts...</p>
         </div>
@@ -565,27 +507,16 @@ It will be filled by the partial template on page load.
         </div>
     </div>
     {% endif %}
-    <!--
-    ---
-    --- END NEW FLEET OVERVIEW
-    ---
-    -->
 </div>
 {% endblock %}
 
-
-<!-- --- NEW JAVASCRIPT BLOCK --- -->
 {% block scripts %}
 <script>
     // This script block will handle both FC actions and the new timer/polling
-
     // --- CSRF Token for all API requests ---
     const csrfToken = "{{ csrf_token }}";
-
     // --- Check if user is an FC ---
     const isFC = {{ is_fc|yesno:"true,false" }};
-
-    // --- NEW: Get the current user's ID ---
     const currentUserID = {{ request.user.id }};
 
     // --- 1. FC ACTION HANDLER (Approve/Deny) ---
@@ -595,11 +526,9 @@ It will be filled by the partial template on page load.
         const button = event.target.closest('.fc-btn');
         if (!button) return; // Click wasn't on a button
 
-        // --- MODIFICATION: Ignore invite buttons ---
         if (button.classList.contains('btn-invite')) {
             return;
         }
-        // --- END MODIFICATION ---
 
         const fitId = button.dataset.fitId;
         const action = button.dataset.action;
@@ -625,7 +554,6 @@ It will be filled by the partial template on page load.
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                // --- FIX: Only remove on 'deny' ---
                 // Let the poller handle moving 'approved' fits
                 if (action === 'deny') {
                     if (card) {
@@ -635,9 +563,7 @@ It will be filled by the partial template on page load.
                     // Optional: show a temporary "approved" state
                     // For now, we just leave buttons disabled
                 }
-                // ---
-                // --- NEW: Event is sent from the server, no need to do anything here
-                // ---
+
             } else {
                 // Re-enable buttons on failure
                 if (card) {
@@ -655,9 +581,6 @@ It will be filled by the partial template on page load.
         });
     }
 
-    // ---
-    // --- NEW: FC INVITE HANDLER
-    // ---
     function handleFCInvite(event) {
         const button = event.target.closest('.btn-invite');
         if (!button) return; // Not an invite button
@@ -682,14 +605,10 @@ It will be filled by the partial template on page load.
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                // Success! Let the poller handle the removal.
-                // We'll just fade out the card.
                 if (card) {
                     card.classList.add('status-IN_FLEET');
                 }
-                // ---
-                // --- NEW: Event is sent from the server, no need to do anything here
-                // ---
+
             } else {
                 // Show a pop-up on error
                 // We can use our new custom confirm modal as an alert
@@ -710,17 +629,9 @@ It will be filled by the partial template on page load.
             button.textContent = 'Invite';
         });
     }
-    // ---
-    // --- END NEW INVITE HANDLER
-    // ---
-
     // --- 2. TIMER AND LIVE POLLING ---
 
     const waitlistContainer = document.getElementById('waitlist-container-live');
-    // ---
-    // --- REMOVED: Polling interval is no longer needed
-    // ---
-    // let pollingInterval = null;
     let timerInterval = null;
 
     // This function updates all timers on the page
@@ -743,13 +654,7 @@ It will be filled by the partial template on page load.
 
     // This function fetches the new HTML
     function fetchWaitlistHTML() {
-        // ---
-        // --- NEW: Add a console.log
-        // ---
         console.log("Fetching new waitlist HTML...");
-        // ---
-        // --- END NEW
-        // ---
         fetch("{% url 'waitlist:api_get_waitlist_html' %}")
             .then(response => {
                 if (response.ok) {
@@ -758,8 +663,6 @@ It will be filled by the partial template on page load.
                 throw new Error('Waitlist closed or error');
             })
             .then(html => {
-                // --- This is the key: replace the content ---
-                // --- MODIFICATION: Only replace the columns, not the new overview card ---
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = html;
 
@@ -771,11 +674,6 @@ It will be filled by the partial template on page load.
                 const liveColumns = waitlistContainer.querySelectorAll('.waitlist-column');
                 // Find all columns in the new HTML
                 const newColumns = tempDiv.querySelectorAll('.waitlist-column');
-
-                // This is a simple replacement. A more complex diff would be better
-                // for performance, but this is more robust for now.
-                // It replaces all columns *except* our new overview column.
-
                 // Remove old columns
                 liveColumns.forEach(col => {
                     if (col.id !== 'fleet-overview-column') {
@@ -792,8 +690,6 @@ It will be filled by the partial template on page load.
                         waitlistContainer.appendChild(newCol);
                     }
                 });
-                // --- END MODIFICATION ---
-
                 // After redrawing, re-update the timers immediately
                 updateWaitTimers();
             })
@@ -804,27 +700,18 @@ It will be filled by the partial template on page load.
     }
 
     // --- 3. NEW: FIT DETAIL MODAL HANDLER ---
-
-    // Get modal elements (they are in base.html)
     const fitModalOverlay = document.getElementById('fit-detail-modal-overlay');
     const fitModalCloseBtn = document.getElementById('fit-detail-modal-close-btn');
     const fitModalCancelBtn = document.getElementById('fit-detail-modal-cancel-btn');
     const fitModalBody = document.getElementById('fit-detail-modal-body');
     const fitModalTitle = document.getElementById('fit-detail-modal-title');
 
-    // --- NEW: Get modal footer buttons ---
     const fitModalAcceptBtn = document.getElementById('fit-detail-modal-accept-btn');
     const fitModalDenyBtn = document.getElementById('fit-detail-modal-deny-btn');
-    // --- NEW: Get pilot's update button ---
     const fitModalUpdateBtn = document.getElementById('fit-detail-modal-update-btn');
 
-    // --- NEW: Variable to store current fit ID ---
     let currentModalFitId = null;
 
-
-    // ---
-    // --- NEW: Complex HTML Builder for FC Modal (replaces simple one)
-    // ---
     function buildSlottedFitHtml(data) {
         const fit = data.slotted_fit;
         if (!fit || !fit.ship || !fit.slots) {
@@ -832,10 +719,6 @@ It will be filled by the partial template on page load.
         }
 
         let html = '<div class="fit-modal-layout">';
-
-        // --- 1. Ship Render Column (REMOVED) ---
-
-        // --- 2. Slot Banks Column ---
         html += '<div class="fit-modal-slot-banks">';
 
         const slotOrder = ['high', 'mid', 'low', 'rig', 'subsystem', 'drone', 'cargo'];
@@ -853,7 +736,6 @@ It will be filled by the partial template on page load.
                 return; // Don't render empty sections
             }
 
-            // Build header
             html += '<div class="fit-slot-bank">';
             html += '<div class="fit-slot-bank-header">';
             html += `${slotNames[slotKey]} `;
@@ -864,15 +746,9 @@ It will be filled by the partial template on page load.
             }
             html += '</div>';
 
-            // Build item list
             html += '<ul class="fit-slot-list">';
             items.forEach(item => {
                 let itemClass = item.is_empty ? 'is-empty' : '';
-
-                // Add status class (e.g., 'fit-item-problem')
-                if (item.status) {
-                    itemClass += ` fit-item-${item.status}`;
-                }
 
                 html += `<li class="fit-slot-item ${itemClass}" title="${item.name}">`;
 
@@ -880,102 +756,27 @@ It will be filled by the partial template on page load.
                     html += `<img src="https://images.evetech.net/types/2965/icon?size=32" alt="Empty Slot" class="fit-modal-icon" style="opacity: 0.2;">`;
                     html += `<span class="fit-item-name">${item.name}</span>`;
                 } else {
-                    // --- *** THIS IS THE FIX: Check for icon_url *** ---
                     const icon_url = item.icon_url || `https://images.evetech.net/types/${item.type_id}/icon?size=32`;
                     html += `<img src="${icon_url}" alt="${item.name}" class="fit-modal-icon">`;
-                    // --- *** END THE FIX *** ---
                     const line_text = item.raw_line || item.name;
                     const safe_line = line_text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     html += `<span class="fit-item-name">${safe_line}</span>`;
                 }
-
-                // --- THIS IS THE NEW PART FOR FC MODAL ---
-                let buttonsHtml = '';
-                let indentedListHtml = '';
-
-                if (item.status === 'accepted_sub') {
-                    if (item.substitutes_for && item.substitutes_for.length > 0) {
-                        indentedListHtml = '<ul class="fit-item-sub-for-list">';
-                        item.substitutes_for.forEach(match => {
-                            indentedListHtml += `<li class="fit-item-sub-for-item">`;
-                            indentedListHtml += `<img src="${match.icon_url}" alt="${match.name}">`;
-                            indentedListHtml += `<span>Substitutes for: ${match.name} (x${match.quantity})</span>`;
-                            indentedListHtml += `</li>`;
-                        });
-                        indentedListHtml += '</ul>';
-                    }
-                }
-                else if (item.status === 'problem') {
-                    // --- *** NEW: Check for failure_reasons *** ---
-                    if (item.failure_reasons && item.failure_reasons.length > 0) {
-                        indentedListHtml = '<ul class="fit-item-failure-list">'; // New class
-                        item.failure_reasons.forEach(fail => {
-                            indentedListHtml += `<li class="fit-item-failure-item">`; // New class
-                            // Format numbers nicely
-                            const subVal = parseFloat(fail.submitted_value).toLocaleString();
-                            const docVal = parseFloat(fail.doctrine_value).toLocaleString();
-                            indentedListHtml += `<span>&#9888; ${fail.attribute_name} (Fit: ${subVal}, Need: ${docVal})</span>`;
-                            indentedListHtml += `</li>`;
-                        });
-                        indentedListHtml += '</ul>';
-                    }
-                    // --- *** END NEW *** ---
-                    else if (item.potential_matches && item.potential_matches.length > 0) {
-                        indentedListHtml = '<ul class="fit-item-missing-list">';
-                        item.potential_matches.forEach(match => {
-                            indentedListHtml += `<li class="fit-item-missing-item">`;
-                            indentedListHtml += `<img src="${match.icon_url}" alt="${match.name}">`;
-                            indentedListHtml += `<span>Missing: ${match.name} (x${match.quantity})</span>`;
-                            indentedListHtml += `</li>`;
-                        });
-                        indentedListHtml += '</ul>';
-                    } else {
-                        indentedListHtml = `<span class="fit-item-problem-tag">(Wrong Item)</span>`;
-                    }
-
-                    // --- REMOVED: "Make Sub" button ---
-                    // The buttonsHtml variable remains an empty string
-                }
-
-                html += buttonsHtml; // This will be empty now
-                html += indentedListHtml;
-                // --- END NEW FC PART ---
 
                 html += '</li>';
             });
             html += '</ul></div>'; // Close bank
         });
 
-        // --- NEW: Show "Missing Items" Bank ---
-        if (data.missing_items && data.missing_items.length > 0) {
-            html += '<div class="fit-slot-bank">';
-            html += '<div class="fit-slot-bank-header" style="color: #ff8a8a;">Missing Items</div>'; // Red header
-            html += '<ul class="fit-slot-list">';
-            data.missing_items.forEach(item => {
-                html += `<li class="fit-slot-item" title="${item.name}" style="color: #ff8a8a;">`; // Red text
-                html += `<img src="${item.icon_url}" alt="${item.name}" class="fit-modal-icon">`;
-                html += `<span class="fit-item-name">${item.name} (x${item.quantity})</span>`;
-                html += '</li>';
-            });
-            html += '</ul></div>';
-        }
-        // --- END MISSING ITEMS ---
-
         html += '</div>'; // Close slot-banks
         html += '</div>'; // Close fit-modal-layout
         return html;
     }
-    // ---
-    // --- END NEW HTML Builder
-    // ---
-
 
     function openFitModal(fitId) {
         if (!fitModalOverlay) return;
 
-        // --- NEW: Store fitId and show footer buttons ---
         currentModalFitId = fitId;
-        // --- MODIFICATION: Hide all buttons by default ---
         if(fitModalAcceptBtn) fitModalAcceptBtn.style.display = 'none';
         if(fitModalDenyBtn) fitModalDenyBtn.style.display = 'none';
         if(fitModalUpdateBtn) fitModalUpdateBtn.style.display = 'none';
@@ -983,14 +784,11 @@ It will be filled by the partial template on page load.
         if(fitModalAcceptBtn) fitModalAcceptBtn.disabled = false;
         if(fitModalDenyBtn) fitModalDenyBtn.disabled = false;
         if(fitModalUpdateBtn) fitModalUpdateBtn.disabled = false;
-        // --- END MODIFICATION ---
 
-        // Show modal with spinner
         fitModalBody.innerHTML = '<div class="modal-spinner"></div>';
         fitModalTitle.textContent = "Loading Fit...";
         fitModalOverlay.classList.add('show');
 
-        // Fetch fit details
         fetch(`{% url 'waitlist:api_get_fit_details' %}?fit_id=${fitId}`)
             .then(response => {
                 if (!response.ok) {
@@ -999,24 +797,13 @@ It will be filled by the partial template on page load.
                 return response.json();
             })
             .then(data => {
-                // --- MODIFICATION: Handle new JSON structure ---
-                // data = { status: "success", name: "...", slotted_fit: {...}, missing_items: [] }
-
                 if (data.status !== 'success') {
                     throw new Error(data.message || 'Failed to load fit.');
                 }
 
                 fitModalTitle.textContent = data.name;
-
-                // --- MODIFIED: Use new complex HTML builder ---
                 fitModalBody.innerHTML = buildSlottedFitHtml(data);
-                // --- END MODIFICATION ---
 
-                // --- REMOVED: Event listener for '.js-sub-accept' ---
-
-                // ---
-                // --- NEW: Show correct buttons based on user role
-                // ---
                 const userIsOwner = (data.character_user_id === currentUserID);
 
                 if (isFC) {
@@ -1024,16 +811,9 @@ It will be filled by the partial template on page load.
                     fitModalDenyBtn.style.display = 'inline-block';
                 } else if (userIsOwner) {
                     fitModalUpdateBtn.style.display = 'inline-block';
-                    // Store fit data on the button for the update function
                     fitModalUpdateBtn.dataset.rawFit = data.raw_fit;
                     fitModalUpdateBtn.dataset.characterId = data.character_id;
-                } else {
-                    // Not owner, not FC - all buttons remain hidden
                 }
-                // ---
-                // --- END NEW
-                // ---
-
             })
             .catch(error => {
                 fitModalBody.innerHTML = `<p style="color: #ff8a8a; padding: 20px;">Error: ${error.message}</p>`;
@@ -1044,36 +824,22 @@ It will be filled by the partial template on page load.
         if (fitModalOverlay) {
             fitModalOverlay.classList.remove('show');
 
-            // --- NEW: Reset modal state ---
             currentModalFitId = null;
             if(fitModalAcceptBtn) fitModalAcceptBtn.style.display = 'none';
             if(fitModalDenyBtn) fitModalDenyBtn.style.display = 'none';
-            // --- NEW: Hide update button on close ---
             if(fitModalUpdateBtn) fitModalUpdateBtn.style.display = 'none';
 
             if(fitModalAcceptBtn) fitModalAcceptBtn.disabled = false;
             if(fitModalDenyBtn) fitModalDenyBtn.disabled = false;
-            // --- NEW: Reset update button ---
             if(fitModalUpdateBtn) fitModalUpdateBtn.disabled = false;
-            // --- END NEW ---
         }
     }
 
-    // ---
-    // --- CUSTOM CONFIRM MODAL (REMOVED)
-    // --- The function 'showCustomConfirm' is now in base.html
-    // ---
-
-
-    // ---
-    // --- NEW: PILOT UPDATE FIT HANDLER
-    // ---
     function handleUpdateFitClick(event) {
         const button = event.target;
         const rawFit = button.dataset.rawFit;
         const characterId = button.dataset.characterId;
 
-        // 1. Get X-Up Modal elements (from base.html)
         const xupModalOverlay = document.getElementById('xup-modal-overlay');
         const xupCharSelect = document.getElementById('xup-char-select');
         const xupFitTextarea = document.getElementById('xup-fit-textarea');
@@ -1084,15 +850,11 @@ It will be filled by the partial template on page load.
             return;
         }
 
-        // 2. Close the fit detail modal
         closeFitModal();
 
-        // 3. Pre-populate the X-Up modal
         xupCharSelect.value = characterId;
         xupFitTextarea.value = rawFit;
 
-        // 4. Trigger the change event on the select to load implants
-        // (This function is defined in base.html)
         xupImplantContainer.innerHTML = '<div class="implant-spinner"></div>';
         fetch(`{% url 'pilot:api_get_implants' %}?character_id=${characterId}`)
             .then(response => response.json())
@@ -1108,16 +870,8 @@ It will be filled by the partial template on page load.
                 xupImplantContainer.innerHTML = `<p style="color: #ff8a8a;">Error: ${error.message}</p>`;
             });
 
-        // 5. Open the X-Up modal
         xupModalOverlay.classList.add('show');
     }
-    // ---
-    // --- END NEW PILOT HANDLER
-    // ---
-
-
-    // --- REMOVED: handleSubstitutionAction function ---
-
 
     // Add close listeners for the modal
     if (fitModalOverlay) {
@@ -1134,12 +888,9 @@ It will be filled by the partial template on page load.
     // This function sets up all our event listeners
     function initializeWaitlist() {
 
-        // --- NEW: Add listeners for modal footer buttons ---
         if (isFC) {
             if(fitModalAcceptBtn) fitModalAcceptBtn.addEventListener('click', () => {
                 if (currentModalFitId) {
-                    // Reuse the existing FC action handler
-                    // We mock the 'event' object it expects
                     const mockEvent = {
                         target: {
                             closest: () => ({
@@ -1151,7 +902,7 @@ It will be filled by the partial template on page load.
                         }
                     };
                     handleFCAction(mockEvent);
-                    closeFitModal(); // Close modal after action
+                    closeFitModal();
                 }
             });
 
@@ -1168,59 +919,41 @@ It will be filled by the partial template on page load.
                         }
                     };
                     handleFCAction(mockEvent);
-                    closeFitModal(); // Close modal after action
+                    closeFitModal();
                 }
             });
         }
-        // --- NEW: Add listener for Pilot's Update button ---
         if(fitModalUpdateBtn) {
             fitModalUpdateBtn.addEventListener('click', handleUpdateFitClick);
         }
-        // --- END NEW ---
 
-        // --- 4. MODIFIED: Add event delegation ---
         waitlistContainer.addEventListener('click', (event) => {
-            // Check for FC action click
             const fcButton = event.target.closest('.fc-btn');
             if (isFC && fcButton) {
-                // --- MODIFICATION: Route to correct handler ---
                 if (fcButton.classList.contains('btn-invite')) {
                     handleFCInvite(event);
                 } else {
                     handleFCAction(event);
                 }
-                // --- END MODIFICATION ---
-                return; // Stop processing
+                return;
             }
 
-            // Check for Fit Modal click
             const fitModalButton = event.target.closest('.js-open-fit-modal');
-            // --- MODIFICATION: Remove 'isFC' check ---
             if (fitModalButton) {
                 const fitId = fitModalButton.dataset.fitId;
                 openFitModal(fitId);
-                return; // Stop processing
+                return;
             }
         });
-        // --- END MODIFICATION ---
 
-        // Run timers
-        updateWaitTimers(); // Run once on load
-        if (timerInterval) clearInterval(timerInterval); // Clear old timer
-        timerInterval = setInterval(updateWaitTimers, 10000); // Update timers every 10s
-
-        // ---
-        // --- REMOVED: Polling interval is no longer needed
-        // ---
-        // if (pollingInterval) clearInterval(pollingInterval); // Clear old poller
-        // pollingInterval = setInterval(fetchWaitlistHTML, 5000); // Poll every 5s
+        updateWaitTimers();
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateWaitTimers, 10000);
     }
 
     // --- 5. PAGE INITIALIZATION ---
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Enable the X-Up button (it's disabled by default in base.html)
-        // We do this here so it's only enabled if the page loads correctly.
         const xupButton = document.getElementById('xup-modal-button');
         const openWaitlist = {{ open_waitlist.pk|default:"null" }};
 
@@ -1228,86 +961,50 @@ It will be filled by the partial template on page load.
             xupButton.disabled = false;
         }
 
-        // Start all the interactive parts
         initializeWaitlist();
 
-        // --- NEW: Start overview polling if FC ---
         if (isFC && openWaitlist !== null) {
             startFleetOverviewPolling();
         }
-        // --- END NEW ---
 
-
-        // ---
-        // --- NEW: EventSource / Server-Sent Events (SSE) ---
-        // ---
-        // We replace the old pollingInterval with this.
         console.log("Connecting to event stream /events/waitlist-updates/...");
 
-        // Connect to the event stream URL
-        // ---
-        // --- THIS IS THE FIX ---
-        // --- We pass the channel name as a query parameter, not a path ---
         const eventSource = new EventSource("/events/?channel=waitlist-updates");
-        // ---
-        // --- END THE FIX ---
-        // ---
 
-        // --- THIS IS THE FIX: Listen for the 'update' event type ---
-        // The server sends events with type 'update', not the default 'message'.
         eventSource.addEventListener('update', (event) => {
             console.log("Received 'update' event from server:", event.data);
-            // We received an update!
-            // Call our existing function to refresh the HTML.
             fetchWaitlistHTML();
 
-            // --- NEW: Also check if waitlist was closed ---
             try {
                 const data = JSON.parse(event.data);
                 if (data.action === 'close') {
                     console.log("Waitlist closed event received, stopping overview polling.");
                     stopFleetOverviewPolling();
-                    // Reload the page to show the "waitlist closed" message
                     window.location.reload();
                 }
             } catch (e) {
-                // Ignore parse error, just fetch HTML
             }
-            // --- END NEW ---
         });
-        // --- END THE FIX ---
 
-        // Optional: Handle connection open
         eventSource.onopen = (event) => {
             console.log("EventSource connection opened.");
         };
 
-        // Optional: Handle errors
         eventSource.onerror = (event) => {
             console.error("EventSource error:", event);
-            // Don't close, EventSource will try to reconnect automatically
         };
-        // ---
-        // --- END NEW: EventSource ---
-        // ---
     });
-
-    // ---
-    // --- NEW: FLEET OVERVIEW JAVASCRIPT (Moved from fc_admin.html)
-    // ---
     let fleetOverviewInterval = null;
     const overviewSection = document.getElementById('fleet-overview-column');
     const overviewCountsContainer = document.getElementById('fleet-ship-counts-container');
     const overviewBody = document.getElementById('fleet-structure-overview-body');
 
     function loadFleetOverview(showOverlay = false) {
-        // Stop if the element doesn't exist (e.g., user is not FC or waitlist closed)
         if (!overviewSection) {
-            stopFleetOverviewPolling(); // Ensure polling is stopped
+            stopFleetOverviewPolling();
             return;
         }
 
-        // We don't use the full-screen overlay here, just show "loading" text
         if (showOverlay) {
             overviewCountsContainer.innerHTML = `<p style="color: #888; font-size: 0.85em; margin: 0;">Refreshing...</p>`;
             overviewBody.innerHTML = `<p style="color: #888; font-size: 0.85em; margin: 0;">Refreshing...</p>`;
@@ -1316,7 +1013,6 @@ It will be filled by the partial template on page load.
         fetch("{% url 'waitlist:api_get_fleet_members' %}")
             .then(response => {
                 if (response.status === 404) {
-                    // ESI fleet not found, stop polling
                     overviewBody.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">ESI fleet not found. Polling stopped.</p>`;
                     overviewCountsContainer.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Fleet Not Found</p>`;
                     stopFleetOverviewPolling();
@@ -1329,24 +1025,13 @@ It will be filled by the partial template on page load.
             })
             .then(data => {
                 if (data.status === 'success') {
-                    // ---
-                    // --- NEW: Render Detailed Ship Counts (Grid Layout)
-                    // ---
-                    const counts_list = data.detailed_ship_counts; // This is now an array
+                    const counts_list = data.detailed_ship_counts;
                     let countsHtml = '';
 
-                    // Helper to build a category
                     const buildCategoryHtml = (categoryName, ships) => {
-                        // --- THIS IS THE FIX ---
-                        // If 'ships' is undefined (because the category was filtered out
-                        // by the backend for having 0 ships), or if the list is
-                        // empty, return an empty string.
                         if (!ships || ships.length === 0) {
                             return '';
                         }
-                        // --- END THE FIX ---
-
-                        // Create a block for this category
                         let html = `<div class="ship-count-category-block">`;
                         html += `<div class="ship-count-category">${categoryName}</div>`;
                         html += `<ul class="ship-count-list">`;
@@ -1361,69 +1046,51 @@ It will be filled by the partial template on page load.
                         return html;
                     };
 
-                    // ---
-                    // --- MODIFICATION: Dynamically loop categories
-                    // ---
                     if (counts_list && counts_list.length > 0) {
                         counts_list.forEach(category_data => {
-                            // category_data = { key: "marauders", name: "Marauders", ships: [...] }
                             countsHtml += buildCategoryHtml(category_data.name, category_data.ships);
                         });
                     }
 
                     if (countsHtml === '') {
-                        // Show a message if no ships are being counted or in fleet
                         countsHtml = '<p style="color: #888; font-size: 0.85em; margin: 0; grid-column: 1 / -1;">No tracked ships in fleet.</p>';
                     }
 
-                    // --- NEW: Combine into grid structure ---
                     overviewCountsContainer.innerHTML = countsHtml;
-                    // ---
-                    // --- END MODIFICATION
-                    // ---
 
-                    // 2. Render Fleet Structure
                     let structureHtml = '';
 
-                    // 1. Render Fleet Command (Boss)
                     structureHtml += `<div class="overview-fleet-command">`;
                     structureHtml += `<div class="overview-fc-header">
                                         <span>${data.fleet_boss_name} (${data.total_member_count})</span>
                                         <span class="overview-fc-star">★</span>
                                     </div>`;
 
-                    // 2. Render Fleet Commander (Role) if one exists
                     if (data.fleet_commander) {
                         const fc = data.fleet_commander;
                         structureHtml += `<div class="overview-fc-member" title="${fc.character_name} (${fc.ship_name})">${fc.character_name} <span class="overview-member-ship">(${fc.ship_name})</span></div>`;
                     }
-                    structureHtml += `</div>`; // Close fleet-command
+                    structureHtml += `</div>`;
 
-
-                    // 3. Render Wings
                     if (data.wings.length > 0) {
                         data.wings.forEach(wing => {
                             structureHtml += `<div class="overview-wing">`;
                             structureHtml += `<div class="overview-wing-header" title="${wing.name}">${wing.name} (${wing.member_count})</div>`;
 
-                            // Render Wing Commander
                             if (wing.wing_commander) {
                                 const wc = wing.wing_commander;
                                 structureHtml += `<div class="overview-wc" title="${wc.character_name} (${wc.ship_name})">${wc.character_name} <span class="overview-member-ship">(${wc.ship_name})</span></div>`;
                             }
 
-                            // Render Squads
                             wing.squads.forEach(squad => {
                                 structureHtml += `<div class="overview-squad">`;
                                 structureHtml += `<div class="overview-squad-header" title="${squad.name}">${squad.name} (${squad.member_count})</div>`;
 
-                                // Render Squad Commander
                                 if (squad.squad_commander) {
                                     const sc = squad.squad_commander;
                                     structureHtml += `<div class="overview-sc" title="${sc.character_name} (${sc.ship_name})">${sc.character_name} <span class="overview-member-ship">(${sc.ship_name})</span></div>`;
                                 }
 
-                                // Render Squad Members
                                 if (squad.members.length > 0) {
                                     structureHtml += `<ul class="overview-member-list">`;
                                     squad.members.forEach(member => {
@@ -1436,14 +1103,12 @@ It will be filled by the partial template on page load.
                             structureHtml += `</div>`;
                         });
                     } else if (!data.fleet_commander) {
-                        // Only show "fleet empty" if no wings AND no FC role
                         structureHtml += '<p style="color: #888; font-size: 0.85em; margin: 0;">Fleet is empty.</p>';
                     }
 
                     overviewBody.innerHTML = structureHtml;
 
                 } else {
-                    // Show error from our API
                     overviewBody.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Error: ${data.message}</p>`;
                     overviewCountsContainer.innerHTML = `<p style="color: #ff8a8a; font-size: 0.85em; margin: 0;">Error</p>`;
                 }
@@ -1456,9 +1121,8 @@ It will be filled by the partial template on page load.
     }
 
     function startFleetOverviewPolling() {
-        stopFleetOverviewPolling(); // Clear any old one
+        stopFleetOverviewPolling();
         console.log("Starting fleet overview polling (5s)...");
-        // Run immediately, then set interval
         loadFleetOverview(true);
         fleetOverviewInterval = setInterval(() => loadFleetOverview(false), 5000);
     }
@@ -1470,8 +1134,5 @@ It will be filled by the partial template on page load.
             fleetOverviewInterval = null;
         }
     }
-    // ---
-    // --- END NEW FLEET OVERVIEW JAVASCRIPT
-    // ---
 </script>
 {% endblock %}

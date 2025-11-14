@@ -1,28 +1,22 @@
 import logging
 import json
-import os # <-- Import os
+import os
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse, HttpResponseBadRequest
 from bravado.exception import HTTPNotFound
 from esi.clients import EsiClientProvider
-# --- NEW: Import send_event ---
 from django_eventstream import send_event
-# --- END NEW ---
-# --- NEW: Import Q for complex lookups ---
+
 from django.db.models import Q
-# --- END NEW ---
 
 from .models import (
     EveCharacter, ShipFit, Fleet, FleetWaitlist,
-    FleetWing, FleetSquad, DoctrineFit, EveDogmaAttribute,
-    ItemComparisonRule, EveTypeDogmaAttribute
+    FleetWing, FleetSquad
 )
-# --- NEW: Import EveType ---
+
 from pilot.models import EveType, EveGroup
-# --- END NEW ---
-# Import the helper functions from our new file
 from .helpers import is_fleet_commander, get_refreshed_token_for_character, _update_fleet_structure
 
 logger = logging.getLogger(__name__)
@@ -38,7 +32,6 @@ def fc_admin_view(request):
     logger.debug(f"FC {request.user.username} accessing fc_admin_view")
     open_waitlist = FleetWaitlist.objects.filter(is_open=True).select_related('fleet', 'fleet__fleet_commander').first()
     
-    # Get all characters for the logged-in user to populate the dropdown
     user_fc_characters = EveCharacter.objects.filter(user=request.user)
     
     available_fleets = Fleet.objects.filter(is_active=False).order_by('description')
@@ -52,10 +45,10 @@ def fc_admin_view(request):
         'open_waitlist': open_waitlist,
         'user_fc_characters': user_fc_characters,
         'available_fleets': available_fleets,
-        'is_fc': True, # We know this is true from the decorator
-        'user_characters': all_user_chars, # For base.html X-Up modal
-        'all_chars_for_header': all_user_chars, # For base.html header
-        'main_char_for_header': main_char, # For base.html header
+        'is_fc': True,
+        'user_characters': all_user_chars,
+        'all_chars_for_header': all_user_chars,
+        'main_char_for_header': main_char,
     }
     return render(request, 'fc_admin.html', context)
 
@@ -77,7 +70,6 @@ def api_fc_manage_waitlist(request):
             return JsonResponse({"status": "error", "message": "Waitlist is already closed."}, status=400)
         
         try:
-            # Find the related fleet and deactivate it
             fleet = open_waitlist.fleet
             logger.info(f"Closing waitlist for fleet {fleet.description} (ID: {fleet.id})")
             fleet.is_active = False
@@ -85,14 +77,11 @@ def api_fc_manage_waitlist(request):
             fleet.esi_fleet_id = None
             fleet.save()
             
-            # Close the waitlist
             open_waitlist.is_open = False
             open_waitlist.save()
             
-            # Clear fleet structure
             FleetWing.objects.filter(fleet=fleet).delete()
             
-            # Deny all pending fits
             pending_fits = ShipFit.objects.filter(
                 waitlist=open_waitlist,
                 status='PENDING'
@@ -100,12 +89,10 @@ def api_fc_manage_waitlist(request):
             count = pending_fits.update(status='DENIED', denial_reason="Waitlist closed before approval.")
             logger.info(f"Denied {count} pending fits.")
             
-            # --- NEW: Send event to all clients ---
             logger.debug("Sending 'waitlist-updates' event")
             send_event('waitlist-updates', 'update', {
                 'action': 'close'
             })
-            # --- END NEW ---
             
             return JsonResponse({"status": "success", "message": "Waitlist closed. All pending fits denied."})
         except Exception as e:
@@ -131,24 +118,18 @@ def api_fc_manage_waitlist(request):
             )
             fleet_to_open = Fleet.objects.get(id=fleet_id, is_active=False)
 
-            # 1. Update the selected Fleet
             fleet_to_open.fleet_commander = fc_character
             fleet_to_open.is_active = True
             fleet_to_open.save()
             
-            # 2. Open its associated Waitlist
             waitlist, created = FleetWaitlist.objects.get_or_create(fleet=fleet_to_open)
             waitlist.is_open = True
             waitlist.save()
             
-            # --- NEW: Send event to all clients ---
-            # Note: This won't show anything, as the page reloads,
-            # but it's good practice.
             logger.debug("Sending 'waitlist-updates' event")
             send_event('waitlist-updates', 'update', {
                 'action': 'open'
             })
-            # --- END NEW ---
             
             logger.info(f"Waitlist '{fleet_to_open.description}' opened by FC {fc_character.character_name}")
             return JsonResponse({"status": "success", "message": f"Waitlist '{fleet_to_open.description}' opened. Please link your in-game fleet."})
@@ -174,7 +155,6 @@ def api_fc_manage_waitlist(request):
             return JsonResponse({"status": "error", "message": "FC Character is required."}, status=400)
             
         try:
-            # 1. Validate FC character and get token
             fc_character = EveCharacter.objects.get(
                 character_id=fleet_commander_id, 
                 user=request.user
@@ -182,7 +162,6 @@ def api_fc_manage_waitlist(request):
             logger.debug(f"FC {fc_character.character_name} attempting to link fleet")
             token = get_refreshed_token_for_character(request.user, fc_character)
 
-            # 2. Check for required ESI scopes
             required_scopes = [
                 'esi-fleets.read_fleet.v1',
                 'esi-fleets.write_fleet.v1'
@@ -197,11 +176,9 @@ def api_fc_manage_waitlist(request):
                     "message": f"Missing required FC scopes: {', '.join(missing)}. Please log in again using the 'Add FC Scopes' option."
                 }, status=403)
 
-            # 3. Initialize ESI client
             esi = EsiClientProvider()
             new_esi_fleet_id = None
             
-            # 4. Make ESI call to get fleet info
             try:
                 logger.debug(f"Getting ESI fleet info for {fc_character.character_name}")
                 fleet_info = esi.client.Fleets.get_characters_character_id_fleet(
@@ -209,17 +186,14 @@ def api_fc_manage_waitlist(request):
                     token=token.access_token
                 ).results()
                 
-                # 5. Check if character is the fleet boss
                 if fleet_info.get('role') != 'fleet_commander':
                     logger.warning(f"FC {fc_character.character_name} link failed: Not fleet boss (Role: {fleet_info.get('role')})")
                     return JsonResponse({"status": "error", "message": "You are not the Fleet Commander (Boss) of your current fleet."}, status=403)
 
-                # 6. Get the new ESI Fleet ID
                 new_esi_fleet_id = fleet_info.get('fleet_id')
                 logger.debug(f"Got ESI fleet ID: {new_esi_fleet_id}")
 
             except HTTPNotFound as e:
-                # 404 means user is not in a fleet.
                 logger.warning(f"FC {fc_character.character_name} link failed: Not in a fleet (404)")
                 return JsonResponse({"status": "error", "message": "You are not in a fleet. Please create one in-game first, then link it."}, status=400)
             
@@ -227,13 +201,11 @@ def api_fc_manage_waitlist(request):
                 logger.error(f"FC {fc_character.character_name} link failed: ESI returned no fleet ID")
                 return JsonResponse({"status": "error", "message": "Could not fetch new Fleet ID from ESI."}, status=500)
 
-            # 7. Update the existing Fleet object
             fleet = open_waitlist.fleet
             fleet.fleet_commander = fc_character
             fleet.esi_fleet_id = new_esi_fleet_id
             fleet.save()
             
-            # 8. Pull the fleet structure
             logger.debug(f"Pulling fleet structure for {new_esi_fleet_id}")
             _update_fleet_structure(esi, fc_character, token, new_esi_fleet_id, fleet)
             
@@ -273,17 +245,14 @@ def api_get_fleet_structure(request):
         logger.debug(f"api_get_fleet_structure: Fleet {fleet.id} not linked to ESI")
         return JsonResponse({"status": "error", "message": "Fleet is not linked to ESI."}, status=400)
 
-    # 1. Get all wings and squads from our DB
     wings = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads')
     
-    # 2. Get available categories
     available_categories = [
         {"id": choice[0], "name": choice[1]}
         for choice in ShipFit.FitCategory.choices
         if choice[0] != 'NONE'
     ]
 
-    # 3. Serialize the structure
     structure = {
         "wings": [],
         "available_categories": available_categories
@@ -296,7 +265,6 @@ def api_get_fleet_structure(request):
             "squads": []
         }
         
-        # Order by squad_id to match in-game order
         for squad in wing.squads.order_by('squad_id'):
             wing_data["squads"].append({
                 "id": squad.squad_id,
@@ -328,13 +296,11 @@ def api_get_fleet_members(request):
         return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
 
     try:
-        # 1. Get FC token and ESI client
         fc_character = fleet.fleet_commander
         token = get_refreshed_token_for_character(request.user, fc_character)
         esi = EsiClientProvider()
         fleet_id = fleet.esi_fleet_id
         
-        # 2. Get ESI fleet member list
         logger.debug(f"Getting ESI fleet members for {fleet_id}")
         esi_members = esi.client.Fleets.get_fleets_fleet_id_members(
             fleet_id=fleet_id,
@@ -343,10 +309,8 @@ def api_get_fleet_members(request):
         
         total_member_count = len(esi_members)
         
-        # 3. Get all wings/squads from our DB for names
         wings_from_db = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads').order_by('wing_id')
         
-        # 4. Build the response structure, prepopulated with correct wing/squad names
         processed_wings = {}
         for wing in wings_from_db:
             wing_id = wing.wing_id
@@ -367,11 +331,9 @@ def api_get_fleet_members(request):
                     "members": []
                 }
         
-        # 5. Get all unique character and ship IDs from the ESI response
         all_character_ids = list(set(m['character_id'] for m in esi_members))
         all_ship_type_ids = list(set(m['ship_type_id'] for m in esi_members))
         
-        # 6. Fetch all names/types from our local DB in two queries
         char_names_map = {
             c.character_id: c.character_name 
             for c in EveCharacter.objects.filter(character_id__in=all_character_ids)
@@ -396,77 +358,53 @@ def api_get_fleet_members(request):
                         char_names_map[item['id']] = item['name']
             except Exception as e:
                 logger.warning(f"Failed to resolve {len(missing_char_ids)} character names from ESI: {e}")
-
-        # ---
-        # --- MODIFICATION: Dynamically build ship counts
-        # ---
         
-        # 7. Get the category keys and display names from .env
         category_keys_str = os.environ.get("FLEET_OVERVIEW_CATEGORIES", "")
         category_names_str = os.environ.get("FLEET_OVERVIEW_CATEGORY_NAMES", "")
         
         category_keys = [key.strip().upper() for key in category_keys_str.split(',') if key.strip()]
         category_names = [name.strip() for name in category_names_str.split(',') if name.strip()]
         
-        # Ensure we have a name for every key
         if len(category_keys) != len(category_names):
             logger.error("FLEET_OVERVIEW_CATEGORIES and FLEET_OVERVIEW_CATEGORY_NAMES have a different number of items!")
-            # Use keys as fallback names
             category_names = [key.title() for key in category_keys]
             
-        # Zip them together
         categories_to_load = list(zip(category_keys, category_names))
         
         SHIP_NAMES_TO_COUNT = {}
         
         for key_upper, display_name in categories_to_load:
-            # Get the comma-separated string from .env for this key, default to empty string
             ship_list_str = os.environ.get(f"FLEET_OVERVIEW_{key_upper}", "")
-            # Split the string by comma, strip whitespace, and filter out empty strings
             ship_names = [name.strip() for name in ship_list_str.split(',') if name.strip()]
             
             if ship_names:
-                # Use the lowercase key for our internal dictionary
                 SHIP_NAMES_TO_COUNT[key_upper.lower()] = ship_names
         
-        # 7a. Get all names into a flat list
         all_ship_names_to_find = [name for names_list in SHIP_NAMES_TO_COUNT.values() for name in names_list]
 
-        # 7b. Query the DB for these types
         ship_types_from_db = EveType.objects.filter(name__in=all_ship_names_to_find)
         
-        # 7c. Create a name-to-type map for easy lookup
         name_to_type_map = {t.name: t for t in ship_types_from_db}
         
-        # 7d. Pre-populate the response dictionary and reverse map
         detailed_ship_counts = {}
         type_id_to_category_map = {}
 
-        # 7d. Loop through our *new* dynamic structure to populate counts
         for key_lower, ship_names in SHIP_NAMES_TO_COUNT.items():
             detailed_ship_counts[key_lower] = []
             for name in ship_names:
                 ship_type = name_to_type_map.get(name)
                 if ship_type:
-                    # Add to our response object
                     detailed_ship_counts[key_lower].append({
                         "type_id": ship_type.type_id,
                         "name": ship_type.name,
                         "count": 0
                     })
-                    # Add to our reverse map
                     type_id_to_category_map[ship_type.type_id] = key_lower
                 else:
-                    # This name is in our list but not in the SDE
                     logger.warning(f"Fleet overview: Ship name '{name}' not found in local EveType SDE.")
-
-        # ---
-        # --- END MODIFICATION
-        # ---
 
         fleet_commander_data = None
         
-        # 8. Process the member list
         for member in esi_members:
             char_id = member['character_id']
             ship_type_id = member['ship_type_id']
@@ -481,15 +419,12 @@ def api_get_fleet_members(request):
             if ship_type:
                 ship_name = ship_type.name
 
-            # --- Increment detailed counts ---
             if ship_type_id in type_id_to_category_map:
                 category = type_id_to_category_map[ship_type_id]
-                # Find the ship in our list and increment it
                 for ship_dict in detailed_ship_counts[category]:
                     if ship_dict["type_id"] == ship_type_id:
                         ship_dict["count"] += 1
                         break
-            # --- END ---
 
             member_data = {
                 "character_id": char_id,
@@ -518,54 +453,41 @@ def api_get_fleet_members(request):
                     else: 
                         processed_wings[wing_id]["squads"][squad_id]["members"].append(member_data)
 
-        # 9. Convert nested dicts to lists for JSON
         final_wings_list = []
         for wing_id in sorted(processed_wings.keys()):
             wing_data = processed_wings[wing_id]
             wing_data['squads'] = [squad_data for squad_id, squad_data in sorted(wing_data['squads'].items())]
             final_wings_list.append(wing_data)
 
-        # ---
-        # --- MODIFICATION: Filter ship counts, but keep "always show" ships
-        # ---
         
-        # 1. Get the set of names to always show
         always_show_names_str = os.environ.get("FLEET_OVERVIEW_ALWAYS_SHOW", "")
         always_show_names = set([name.strip() for name in always_show_names_str.split(',') if name.strip()])
         logger.debug(f"Always showing ships: {always_show_names}")
 
-        # --- MODIFICATION: Build a list of dicts for the response ---
         final_detailed_ship_counts_list = []
         
-        # Use categories_to_load to preserve the order from the .env file
         for key_upper, display_name in categories_to_load:
             key_lower = key_upper.lower()
             
             if key_lower in detailed_ship_counts:
                 ships_list = detailed_ship_counts[key_lower]
                 
-                # Filter the list to include ships if count > 0 OR name is in always_show_names
                 ships_to_show = [
                     ship for ship in ships_list 
                     if ship["count"] > 0 or ship["name"] in always_show_names
                 ]
                 
-                # Only add the category to the final list if it's not empty
                 if ships_to_show:
                     final_detailed_ship_counts_list.append({
                         "key": key_lower,
                         "name": display_name,
                         "ships": ships_to_show
                     })
-        # ---
-        # --- END MODIFICATION
-        # ---
 
-        # 10. Prepare final response
         logger.debug(f"Returning fleet overview: {final_detailed_ship_counts_list}")
         return JsonResponse({
             "status": "success",
-            "detailed_ship_counts": final_detailed_ship_counts_list, # <-- MODIFIED
+            "detailed_ship_counts": final_detailed_ship_counts_list,
             "wings": final_wings_list,
             "fleet_commander": fleet_commander_data,
             "total_member_count": total_member_count,
@@ -600,32 +522,26 @@ def api_save_squad_mappings(request):
         return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
         
     try:
-        # 1. Get FC token and ESI client
         fc_character = fleet.fleet_commander
         token = get_refreshed_token_for_character(request.user, fc_character)
         esi = EsiClientProvider()
         
-        # 2. Parse incoming data
         data = json.loads(request.body)
         wing_data = data.get('wings', [])
         squad_data = data.get('squads', [])
         logger.debug(f"Received {len(wing_data)} wings and {len(squad_data)} squads to update")
         
-        # 3. Get all wings/squads for this fleet from DB
         all_db_wings = {w.wing_id: w for w in fleet.wings.all()}
         all_db_squads = {s.squad_id: s for s in FleetSquad.objects.filter(wing__fleet=fleet)}
         
-        # 4. Clear all existing category assignments
         FleetSquad.objects.filter(wing__fleet=fleet).update(assigned_category=None)
         
-        # 5. Process Wing Name Changes
         for wing_info in wing_data:
             wing_id = int(wing_info['id'])
             new_name = wing_info['name']
             
             db_wing = all_db_wings.get(wing_id)
             if db_wing and db_wing.name != new_name:
-                # Name changed, push to ESI
                 logger.debug(f"Renaming wing {wing_id} to '{new_name}' in ESI")
                 esi.client.Fleets.put_fleets_fleet_id_wings_wing_id(
                     fleet_id=fleet.esi_fleet_id,
@@ -633,11 +549,9 @@ def api_save_squad_mappings(request):
                     naming={'name': new_name},
                     token=token.access_token
                 ).results()
-                # Update DB
                 db_wing.name = new_name
                 db_wing.save()
 
-        # 6. Process Squad Name/Category Changes
         for squad_info in squad_data:
             squad_id = int(squad_info['id'])
             new_name = squad_info['name']
@@ -645,9 +559,7 @@ def api_save_squad_mappings(request):
             
             db_squad = all_db_squads.get(squad_id)
             if db_squad:
-                # Check for name change
                 if db_squad.name != new_name:
-                    # Name changed, push to ESI
                     logger.debug(f"Renaming squad {squad_id} to '{new_name}' in ESI")
                     esi.client.Fleets.put_fleets_fleet_id_squads_squad_id(
                         fleet_id=fleet.esi_fleet_id,
@@ -656,19 +568,16 @@ def api_save_squad_mappings(request):
                         token=token.access_token
                     ).results()
                 
-                # Update DB with new name and category
                 db_squad.name = new_name
                 db_squad.assigned_category = new_category
                 db_squad.save()
         
-        # 7. Refresh structure from ESI and return it
         logger.debug("Refreshing fleet structure from ESI after save")
         _update_fleet_structure(
             esi, fc_character, token, 
             fleet.esi_fleet_id, fleet
         )
         
-        # Get the new structure to return
         wings = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads')
         available_categories = [
             {"id": choice[0], "name": choice[1]}
@@ -721,22 +630,18 @@ def api_fc_invite_pilot(request):
     logger.debug(f"FC {request.user.username} inviting fit {fit_id}")
     
     try:
-        # 1. Get the fit and the pilot to be invited
         fit = ShipFit.objects.get(id=fit_id, waitlist=open_waitlist, status='APPROVED')
         pilot_to_invite = fit.character
         
-        # 2. Get the FC's token
         fc_character = fleet.fleet_commander
         token = get_refreshed_token_for_character(request.user, fc_character)
 
-        # 3. Find the correct role (squad)
-        role = "squad_member" # Default role
+        role = "squad_member"
         wing_id = None
         squad_id = None
 
         if fit.category != ShipFit.FitCategory.NONE:
             try:
-                # Find a squad mapped to this fit's category
                 mapped_squad = FleetSquad.objects.get(
                     wing__fleet=fleet,
                     assigned_category=fit.category
@@ -748,17 +653,14 @@ def api_fc_invite_pilot(request):
                 
             except FleetSquad.DoesNotExist:
                 logger.debug(f"No squad mapped for {fit.category}, finding fallback")
-                # Fallback: Try to find "On Grid" wing.
                 on_grid_wing = fleet.wings.filter(name="On Grid").first()
                 if on_grid_wing:
-                    # Find the first squad in the "On Grid" wing
                     first_squad = on_grid_wing.squads.order_by('squad_id').first()
                     if first_squad:
                         wing_id = first_squad.wing.wing_id
                         squad_id = first_squad.squad_id
                         logger.debug(f"Using 'On Grid' fallback squad {squad_id}")
                 
-                # If "On Grid" not found or has no squads, use the absolute first wing/squad
                 if not squad_id:
                     first_wing = fleet.wings.order_by('wing_id').first()
                     if first_wing:
@@ -769,11 +671,9 @@ def api_fc_invite_pilot(request):
                             logger.debug(f"Using absolute first squad {squad_id}")
 
         if not wing_id or not squad_id:
-            # Fallback if fleet has no wings/squads
-            role = "fleet_commander" # Should never happen, but safe fallback
+            role = "fleet_commander"
             logger.warning(f"No squads found for fleet {fleet.id}, defaulting role to fleet_commander")
         
-        # 4. Build the ESI invitation dict
         invitation = {
             "character_id": pilot_to_invite.character_id,
             "role": role
@@ -783,26 +683,22 @@ def api_fc_invite_pilot(request):
         if squad_id:
             invitation["squad_id"] = squad_id
         
-        # 5. Send the invite
         logger.debug(f"Sending ESI invite to {pilot_to_invite.character_name}: {invitation}")
         esi = EsiClientProvider()
         esi.client.Fleets.post_fleets_fleet_id_members(
             fleet_id=fleet.esi_fleet_id,
             invitation=invitation,
             token=token.access_token
-        ).results() # .results() raises exception on ESI error
+        ).results()
 
-        # 6. Update the fit status
         fit.status = ShipFit.FitStatus.IN_FLEET
         fit.save()
         
-        # --- NEW: Send event to all clients ---
         logger.debug("Sending 'waitlist-updates' event")
         send_event('waitlist-updates', 'update', {
             'fit_id': fit.id,
             'action': 'invite'
         })
-        # --- END NEW ---
         
         logger.info(f"Invite sent to {pilot_to_invite.character_name} by {fc_character.character_name}")
         return JsonResponse({"status": "success", "message": "Invite sent."})
@@ -811,7 +707,6 @@ def api_fc_invite_pilot(request):
         logger.warning(f"FC {request.user.username} tried to invite non-existent/unapproved fit {fit_id}")
         return JsonResponse({"status": "error", "message": "Fit not found or not approved."}, status=404)
     except Exception as e:
-        # Catch ESI errors (e.g., pilot already in fleet)
         logger.error(f"Error inviting pilot for fit {fit_id}: {e}", exc_info=True)
         return JsonResponse({"status": "error", "message": f"ESI Error: {str(e)}"}, status=500)
 
@@ -836,7 +731,6 @@ def api_fc_create_default_layout(request):
         return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
 
     try:
-        # 1. Define our desired layout
         DEFAULT_LAYOUT = [
             {
                 "name": "On Grid",
@@ -866,13 +760,11 @@ def api_fc_create_default_layout(request):
             }
         ]
         
-        # 2. Get FC character and token
         fc_character = fleet.fleet_commander
         token = get_refreshed_token_for_character(request.user, fc_character)
         esi = EsiClientProvider()
         fleet_id = fleet.esi_fleet_id
         
-        # 3. Check FC Position
         try:
             logger.debug(f"Checking FC position for {fc_character.character_name}")
             fleet_info = esi.client.Fleets.get_characters_character_id_fleet(
@@ -890,32 +782,26 @@ def api_fc_create_default_layout(request):
              logger.warning(f"Default layout failed: FC {fc_character.character_name} not in fleet")
              return JsonResponse({"status": "error", "message": "You are not in the fleet. Please link the fleet first."}, status=400)
 
-        # 4. Get the *current* fleet structure from ESI
         logger.debug(f"Getting current ESI structure for fleet {fleet_id}")
         current_wings = esi.client.Fleets.get_fleets_fleet_id_wings(
             fleet_id=fleet_id,
             token=token.access_token
         ).results()
         
-        # 5. Clear our local DB structure
         FleetWing.objects.filter(fleet=fleet).delete()
         logger.debug("Cleared local DB structure")
 
-        # 6. Loop through our desired layout and apply it
         wing_index = 0
         for wing_def in DEFAULT_LAYOUT:
             squad_index = 0
             wing_name = wing_def['name']
             
-            # 6a. Find or create the wing
             esi_wing = current_wings[wing_index] if wing_index < len(current_wings) else None
             wing_id = None
             
             if esi_wing:
-                # Reuse existing wing
                 wing_id = esi_wing['id']
                 logger.debug(f"Reusing and renaming wing {wing_id} to '{wing_name}'")
-                # Rename it
                 esi.client.Fleets.put_fleets_fleet_id_wings_wing_id(
                     fleet_id=fleet_id,
                     wing_id=wing_id,
@@ -923,14 +809,12 @@ def api_fc_create_default_layout(request):
                     token=token.access_token
                 ).results()
             else:
-                # Create new wing
                 logger.debug(f"Creating new wing, renaming to '{wing_name}'")
                 new_wing_op = esi.client.Fleets.post_fleets_fleet_id_wings(
                     fleet_id=fleet_id,
                     token=token.access_token
                 ).results()
                 wing_id = new_wing_op['wing_id']
-                # Rename it
                 esi.client.Fleets.put_fleets_fleet_id_wings_wing_id(
                     fleet_id=fleet_id,
                     wing_id=wing_id,
@@ -938,28 +822,22 @@ def api_fc_create_default_layout(request):
                     token=token.access_token
                 ).results()
             
-            # 6b. Save wing to our DB
             db_wing = FleetWing.objects.create(
                 fleet=fleet, wing_id=wing_id, name=wing_name
             )
             
-            # 6c. Get the list of squads that *actually* exist in this wing
             existing_squads = sorted(esi_wing['squads'], key=lambda s: s['id']) if esi_wing else []
 
-            # 6d. Loop through our *desired* squads for this wing
             for squad_def in wing_def['squads']:
                 squad_name = squad_def['name']
                 category = squad_def['category']
                 squad_id = None
                 
-                # 6e. Find or create the squad
                 esi_squad = existing_squads[squad_index] if squad_index < len(existing_squads) else None
                 
                 if esi_squad:
-                    # Reuse existing squad
                     squad_id = esi_squad['id']
                     logger.debug(f"  Reusing squad {squad_id}, renaming to '{squad_name}'")
-                    # Rename it
                     esi.client.Fleets.put_fleets_fleet_id_squads_squad_id(
                         fleet_id=fleet_id,
                         squad_id=squad_id,
@@ -967,7 +845,6 @@ def api_fc_create_default_layout(request):
                         token=token.access_token
                     ).results()
                 else:
-                    # Create new squad
                     logger.debug(f"  Creating new squad in wing {wing_id}, renaming to '{squad_name}'")
                     new_squad = esi.client.Fleets.post_fleets_fleet_id_wings_wing_id_squads(
                         fleet_id=fleet_id,
@@ -975,7 +852,6 @@ def api_fc_create_default_layout(request):
                         token=token.access_token
                     ).results()
                     squad_id = new_squad['squad_id']
-                    # Rename it
                     esi.client.Fleets.put_fleets_fleet_id_squads_squad_id(
                         fleet_id=fleet_id,
                         squad_id=squad_id,
@@ -983,7 +859,6 @@ def api_fc_create_default_layout(request):
                         token=token.access_token
                     ).results()
 
-                # 6f. Save squad to our DB
                 FleetSquad.objects.create(
                     wing=db_wing,
                     squad_id=squad_id,
@@ -993,7 +868,6 @@ def api_fc_create_default_layout(request):
                 
                 squad_index += 1
             
-            # 6g. CLEANUP SQUADS
             if squad_index < len(existing_squads):
                 for i in range(squad_index, len(existing_squads)):
                     esi_squad = existing_squads[i]
@@ -1017,7 +891,6 @@ def api_fc_create_default_layout(request):
             
             wing_index += 1
         
-        # 7. CLEANUP WINGS
         if wing_index < len(current_wings):
             for i in range(wing_index, len(current_wings)):
                 esi_wing = current_wings[i]
@@ -1036,7 +909,6 @@ def api_fc_create_default_layout(request):
                     fleet=fleet, wing_id=wing_id, name=wing_name
                 )
                 
-                # 7a. CLEANUP SQUADS in leftover wings
                 squad_index = 0
                 squads_to_clean = sorted(esi_wing['squads'], key=lambda s: s['id'])
                 for esi_squad in squads_to_clean:
@@ -1087,18 +959,15 @@ def api_fc_refresh_structure(request):
         return JsonResponse({"status": "error", "message": "Fleet is not linked or FC is not set."}, status=400)
 
     try:
-        # 1. Get FC token and ESI client
         fc_character = fleet.fleet_commander
         token = get_refreshed_token_for_character(request.user, fc_character)
         esi = EsiClientProvider()
         
-        # 2. Call the helper to update the DB
         _update_fleet_structure(
             esi, fc_character, token, 
             fleet.esi_fleet_id, fleet
         )
         
-        # 3. Get the new structure to return
         wings = FleetWing.objects.filter(fleet=fleet).prefetch_related('squads')
         available_categories = [
             {"id": choice[0], "name": choice[1]}
@@ -1149,12 +1018,10 @@ def api_fc_refresh_structure(request):
             count = pending_fits.update(status='DENIED', denial_reason="Fleet closed (ESI fleet not found).")
             logger.info(f"Closed waitlist {open_waitlist.id} and denied {count} pending fits.")
 
-            # --- NEW: Send event to all clients ---
             logger.debug("Sending 'waitlist-updates' event")
             send_event('waitlist-updates', 'update', {
                 'action': 'close'
             })
-            # --- END NEW ---
 
             return JsonResponse({
                 "status": "error",
@@ -1342,488 +1209,3 @@ def api_fc_delete_wing(request):
     except Exception as e:
         logger.error(f"Error deleting wing {wing_id}: {e}", exc_info=True)
         return JsonResponse({"status":"error", "message": f"An error occurred: {str(e)}"}, status=500)
-
-
-# ---
-# --- RULE HELPER VIEWS
-# ---
-
-@login_required
-@user_passes_test(is_fleet_commander)
-def fc_rule_helper_view(request):
-    """
-    Displays the EMPTY shell for the rule helper.
-    All data is now loaded dynamically via API.
-    """
-    logger.debug(f"FC {request.user.username} accessing rule helper shell")
-
-    # --- Context for base.html ---
-    all_user_chars = request.user.eve_characters.all().order_by('character_name')
-    main_char = all_user_chars.filter(is_main=True).first()
-    if not main_char:
-        main_char = all_user_chars.first()
-
-    context = {
-        'is_fc': True,
-        'user_characters': all_user_chars,
-        'all_chars_for_header': all_user_chars,
-        'main_char_for_header': main_char,
-    }
-    
-    # Just render the template shell
-    return render(request, 'fc_rule_helper.html', context)
-
-
-@login_required
-@user_passes_test(is_fleet_commander)
-def api_fc_get_rule_helper_data(request):
-    """
-    API endpoint that fetches ALL data required to populate
-    the rule helper page.
-    --- OPTIMIZED to remove N+1 queries ---
-    """
-    try:
-        logger.debug(f"FC {request.user.username} fetching all rule helper data")
-        
-        # ---
-        # --- PRE-FETCHING (Optimized)
-        # ---
-        
-        # 1. Get all item types from all doctrines in one go
-        all_doctrine_fits = DoctrineFit.objects.filter(fit_items_json__isnull=False)
-        all_item_ids_in_doctrines = set()
-        for fit in all_doctrine_fits:
-            all_item_ids_in_doctrines.update(int(k) for k in fit.get_fit_items().keys())
-
-        # 2. Get all EveType objects for these items, ignoring globally-ignored groups
-        all_doctrine_types_qs = EveType.objects.filter(
-            type_id__in=all_item_ids_in_doctrines,
-            group__ignore_for_rules=False
-        ).select_related('group')
-        
-        doctrine_type_map = {t.type_id: t for t in all_doctrine_types_qs}
-        
-        # 3. Get all *unique group IDs* from our valid doctrine items
-        all_doctrine_group_ids = {t.group_id for t in doctrine_type_map.values()}
-        
-        # 4. Get all dogma attributes for *all* items in these groups, in one query
-        # This is the biggest optimization.
-        attrs_by_group_id = {}
-        attr_data_qs = EveDogmaAttribute.objects.filter(
-            type_values__type__group_id__in=all_doctrine_group_ids
-        ).values(
-            'attribute_id', 
-            'name', 
-            'unit_name', 
-            'description', 
-            'type_values__type__group_id' # This is the key: gets the group_id
-        ).distinct()
-
-        for attr in attr_data_qs:
-            group_id = attr['type_values__type__group_id']
-            if group_id not in attrs_by_group_id:
-                attrs_by_group_id[group_id] = {}
-            
-            # Use attribute_id as key to de-duplicate attributes
-            attrs_by_group_id[group_id][attr['attribute_id']] = {
-                "attr_id": attr['attribute_id'],
-                "attr_name": attr['name'],
-                "unit_name": attr['unit_name'],
-                "description": attr['description']
-            }
-
-        # ---
-        # --- 1. DATA FOR "GLOBAL RULES" TAB (Optimized)
-        # ---
-        
-        # 1a. Get all group IDs that *already* have global rules
-        ruled_group_ids = ItemComparisonRule.objects.filter(
-            ship_type__isnull=True
-        ).values_list('group_id', flat=True).distinct()
-        
-        # 1b. Find un-ruled groups by subtracting the two sets
-        unruled_group_ids = all_doctrine_group_ids - set(ruled_group_ids)
-        
-        # 1c. Get names for our unruled groups
-        group_names_map = {
-            g.group_id: g.name 
-            for g in EveGroup.objects.filter(group_id__in=unruled_group_ids)
-        }
-
-        # 1d. Build the data from our pre-fetched attribute dict
-        global_unruled_data = []
-        for group_id in unruled_group_ids:
-            attributes_list = list(attrs_by_group_id.get(group_id, {}).values())
-            if attributes_list: # Only add if we found attributes
-                global_unruled_data.append({
-                    "group_id": group_id,
-                    "group_name": group_names_map.get(group_id, f"Group {group_id}"),
-                    "attributes": attributes_list
-                })
-
-        # ---
-        # --- 2. DATA FOR "SPECIFIC RULES" TAB (Optimized)
-        # ---
-        
-        # 2a. Get all (ship_id, group_id) pairs from doctrines (all in memory)
-        ship_group_pairs_in_doctrines = set()
-        all_relevant_ship_ids = set()
-        for fit in all_doctrine_fits:
-            ship_id = fit.ship_type_id
-            if not ship_id:
-                continue
-            all_relevant_ship_ids.add(ship_id)
-            for item_id_str in fit.get_fit_items().keys():
-                item_type = doctrine_type_map.get(int(item_id_str))
-                if item_type:
-                    ship_group_pairs_in_doctrines.add((ship_id, item_type.group_id))
-
-        # 2b. Get all pairs that *already* have specific rules
-        ruled_ship_group_pairs = set(
-            ItemComparisonRule.objects.filter(
-                ship_type__isnull=False
-            ).values_list('ship_type_id', 'group_id').distinct()
-        )
-        
-        # 2c. Find un-ruled pairs by subtracting
-        unruled_ship_group_pairs = ship_group_pairs_in_doctrines - ruled_ship_group_pairs
-        
-        # 2d. Get names for all relevant ships and groups
-        ship_names_map = {
-            s.type_id: s.name 
-            for s in EveType.objects.filter(type_id__in=all_relevant_ship_ids)
-        }
-        
-        all_specific_group_ids = {group_id for _, group_id in unruled_ship_group_pairs}
-        # Update our group_names_map with any new groups
-        new_group_ids = all_specific_group_ids - set(group_names_map.keys())
-        if new_group_ids:
-            group_names_map.update({
-                g.group_id: g.name 
-                for g in EveGroup.objects.filter(group_id__in=new_group_ids)
-            })
-        
-        # 2e. Build the data from our pre-fetched attribute dict
-        specific_unruled_data_map = {}
-        for ship_id, group_id in unruled_ship_group_pairs:
-            attributes_list = list(attrs_by_group_id.get(group_id, {}).values())
-            
-            if attributes_list: # Only add if attributes exist
-                if ship_id not in specific_unruled_data_map:
-                    specific_unruled_data_map[ship_id] = {
-                        "ship_id": ship_id,
-                        "ship_name": ship_names_map.get(ship_id, f"Ship {ship_id}"),
-                        "groups": []
-                    }
-                
-                specific_unruled_data_map[ship_id]["groups"].append({
-                    "group_id": group_id,
-                    "group_name": group_names_map.get(group_id, f"Group {group_id}"),
-                    "attributes": attributes_list
-                })
-
-        # 2f. Convert map to sorted list
-        specific_unruled_data = sorted(
-            [data for data in specific_unruled_data_map.values() if data["groups"]],
-            key=lambda x: x["ship_name"]
-        )
-        for ship_data in specific_unruled_data:
-            ship_data["groups"].sort(key=lambda x: x["group_name"])
-            
-        # ---
-        # --- 3. DATA FOR "EDIT EXISTING RULES" TAB (Already efficient)
-        # ---
-        existing_rules_qs = ItemComparisonRule.objects.all().select_related(
-            'group', 'attribute', 'ship_type'
-        ).order_by('ship_type__name', 'group__name', 'attribute__name')
-        
-        existing_rules_data = [
-            {
-                "id": rule.id,
-                "is_specific": rule.ship_type is not None,
-                "ship_name": rule.ship_type.name if rule.ship_type else "-",
-                "group_name": rule.group.name,
-                "attribute_name": rule.attribute.name,
-                "higher_is_better": rule.higher_is_better,
-            }
-            for rule in existing_rules_qs
-        ]
-        
-        # ---
-        # --- 4. DATA FOR "MANAGE IGNORED GROUPS" TAB (Already efficient)
-        # ---
-        ignored_groups_qs = EveGroup.objects.filter(ignore_for_rules=True).order_by('name')
-        ignored_groups_data = [
-            {
-                "id": group.group_id,
-                "name": group.name,
-            }
-            for group in ignored_groups_qs
-        ]
-        
-        # --- 5. Return all data ---
-        logger.debug(f"Rule helper data fully assembled. Global: {len(global_unruled_data)}, Specific: {len(specific_unruled_data)}, Existing: {len(existing_rules_data)}, Ignored: {len(ignored_groups_data)}")
-        return JsonResponse({
-            "status": "success",
-            "global_unruled_data": global_unruled_data,
-            "specific_unruled_data": specific_unruled_data,
-            "existing_rules_data": existing_rules_data,
-            "ignored_groups_data": ignored_groups_data,
-        })
-        
-    except Exception as e:
-        logger.error(f"Error fetching rule helper data: {e}", exc_info=True)
-        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
-
-
-@login_required
-@require_POST
-@user_passes_test(is_fleet_commander)
-def api_fc_save_comparison_rules(request):
-    """
-    API endpoint to bulk-create new ItemComparisonRules
-    from the rule helper page.
-    
-    --- MODIFIED: Now accepts an optional 'ship_type_id'
-    to create ship-specific rules.
-    """
-    try:
-        data = json.loads(request.body)
-        rules_to_create = data.get('rules', [])
-        logger.info(f"FC {request.user.username} saving {len(rules_to_create)} new comparison rules")
-        
-        new_rules = []
-        
-        # Get all related objects in advance
-        all_group_ids = {r['group_id'] for r in rules_to_create}
-        all_attr_ids = {r['attr_id'] for r in rules_to_create}
-        all_ship_ids = {r['ship_type_id'] for r in rules_to_create if r.get('ship_type_id')}
-        
-        groups = {g.group_id: g for g in EveGroup.objects.filter(group_id__in=all_group_ids)}
-        attributes = {a.attribute_id: a for a in EveDogmaAttribute.objects.filter(attribute_id__in=all_attr_ids)}
-        ships = {s.type_id: s for s in EveType.objects.filter(type_id__in=all_ship_ids)}
-
-        for rule in rules_to_create:
-            group = groups.get(int(rule['group_id']))
-            attribute = attributes.get(int(rule['attr_id']))
-            ship_type = None
-            
-            # --- NEW: Check for ship_type_id ---
-            if rule.get('ship_type_id'):
-                ship_type = ships.get(int(rule['ship_type_id']))
-                if not ship_type:
-                    logger.warning(f"Could not find ship_type for ID {rule.get('ship_type_id')}, skipping rule.")
-                    continue
-            # --- END NEW ---
-
-            if not group or not attribute:
-                logger.warning(f"Invalid group or attribute in rule data: {rule}, skipping.")
-                continue
-                
-            new_rules.append(
-                ItemComparisonRule(
-                    group=group,
-                    attribute=attribute,
-                    higher_is_better=rule['higher_is_better'],
-                    ship_type=ship_type # This will be None for global rules, or an EveType for specific
-                )
-            )
-        
-        # Create all new rules in one go
-        ItemComparisonRule.objects.bulk_create(new_rules, ignore_conflicts=True)
-        
-        logger.info(f"Successfully created {len(new_rules)} new rules.")
-        return JsonResponse({"status": "success", "message": f"Successfully created {len(new_rules)} new rules."})
-        
-    except json.JSONDecodeError:
-        logger.warning(f"api_fc_save_comparison_rules: Invalid JSON from {request.user.username}")
-        return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
-    except Exception as e:
-        logger.error(f"Error saving rules: {e}", exc_info=True)
-        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
-
-
-@login_required
-@require_POST
-@user_passes_test(is_fleet_commander)
-def api_fc_ignore_rule_group(request):
-    """
-    API endpoint to set the 'ignore_for_rules' flag on an EveGroup.
-    """
-    try:
-        data = json.loads(request.body)
-        group_id = data.get('group_id')
-        logger.info(f"FC {request.user.username} ignoring group {group_id}")
-        
-        if not group_id:
-            logger.warning(f"api_fc_ignore_rule_group: Missing group_id")
-            return JsonResponse({"status": "error", "message": "Missing group_id."}, status=400)
-            
-        group = get_object_or_404(EveGroup, group_id=group_id)
-        group.ignore_for_rules = True
-        group.save()
-        
-        logger.info(f"Group {group.name} (ID: {group_id}) set to be ignored.")
-        return JsonResponse({"status": "success", "message": f"Group '{group.name}' will no longer be shown."})
-
-    except EveGroup.DoesNotExist:
-        logger.warning(f"api_fc_ignore_rule_group: Group {group_id} not found.")
-        return JsonResponse({"status": "error", "message": "Group not found."}, status=404)
-    except json.JSONDecodeError:
-        logger.warning(f"api_fc_ignore_rule_group: Invalid JSON from {request.user.username}")
-        return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
-    except Exception as e:
-        logger.error(f"Error ignoring group: {e}", exc_info=True)
-        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
-
-
-@login_required
-@require_POST
-@user_passes_test(is_fleet_commander)
-def api_fc_delete_comparison_rule(request):
-    """
-    API endpoint to delete an existing ItemComparisonRule.
-    """
-    try:
-        data = json.loads(request.body)
-        rule_id = data.get('rule_id')
-        logger.info(f"FC {request.user.username} deleting rule {rule_id}")
-        
-        if not rule_id:
-            logger.warning(f"api_fc_delete_comparison_rule: Missing rule_id")
-            return JsonResponse({"status": "error", "message": "Missing rule_id."}, status=400)
-            
-        rule = get_object_or_404(ItemComparisonRule, id=rule_id)
-        rule_name = str(rule) # Get a string representation before deleting
-        rule.delete()
-        
-        logger.info(f"Rule {rule_id} ({rule_name}) deleted.")
-        return JsonResponse({"status": "success", "message": f"Rule '{rule_name}' deleted."})
-
-    except ItemComparisonRule.DoesNotExist:
-        logger.warning(f"api_fc_delete_comparison_rule: Rule {rule_id} not found.")
-        return JsonResponse({"status": "error", "message": "Rule not found."}, status=404)
-    except json.JSONDecodeError:
-        logger.warning(f"api_fc_delete_comparison_rule: Invalid JSON from {request.user.username}")
-        return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
-    except Exception as e:
-        logger.error(f"Error deleting rule: {e}", exc_info=True)
-        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
-
-# ---
-# --- NEW: EDIT AND UN-IGNORE APIs
-# ---
-
-@login_required
-@require_POST
-@user_passes_test(is_fleet_commander)
-def api_fc_edit_comparison_rule(request):
-    """
-    API endpoint to edit an existing ItemComparisonRule.
-    Can edit 'higher_is_better' or change 'ship_type'.
-    """
-    try:
-        data = json.loads(request.body)
-        rule_id = data.get('rule_id')
-        
-        if not rule_id:
-            logger.warning(f"api_fc_edit_comparison_rule: Missing rule_id")
-            return JsonResponse({"status": "error", "message": "Missing rule_id."}, status=400)
-            
-        rule = get_object_or_404(ItemComparisonRule, id=rule_id)
-        
-        # --- NEW: Flexible update logic ---
-        updated_fields = []
-        
-        # Check if 'higher_is_better' is in the payload
-        if 'higher_is_better' in data:
-            higher_is_better = data.get('higher_is_better')
-            if higher_is_better is None:
-                return JsonResponse({"status": "error", "message": "Invalid 'higher_is_better' value."}, status=400)
-                
-            rule.higher_is_better = bool(higher_is_better)
-            updated_fields.append("logic")
-            logger.info(f"FC {request.user.username} editing rule {rule_id}: set higher_is_better={rule.higher_is_better}")
-
-        # Check if 'ship_type_id' is in the payload (e.g., set to null)
-        if 'ship_type_id' in data:
-            ship_type_id = data.get('ship_type_id')
-            
-            if ship_type_id is None:
-                # User wants to make this rule GLOBAL
-                logger.info(f"FC {request.user.username} editing rule {rule_id}: setting to GLOBAL")
-                
-                # Check for conflicts
-                conflict_exists = ItemComparisonRule.objects.filter(
-                    group=rule.group,
-                    attribute=rule.attribute,
-                    ship_type__isnull=True
-                ).exclude(id=rule.id).exists()
-                
-                if conflict_exists:
-                    logger.warning(f"FC {request.user.username} edit rule {rule_id} failed: Global rule already exists for {rule.group.name}/{rule.attribute.name}")
-                    return JsonResponse({
-                        "status": "error", 
-                        "message": f"A global rule for '{rule.group.name}' and '{rule.attribute.name}' already exists. Cannot make this a global rule."
-                    }, status=400)
-                
-                rule.ship_type = None
-                updated_fields.append("scope")
-            else:
-                # Logic to change to a *different* ship would go here,
-                # but we only support "make global" for now.
-                logger.warning(f"api_fc_edit_comparison_rule: Received unhandled ship_type_id: {ship_type_id}")
-                pass
-
-        if not updated_fields:
-            return JsonResponse({"status": "error", "message": "No valid edit data provided."}, status=400)
-
-        rule.save()
-        
-        logger.info(f"Rule {rule_id} updated successfully (fields: {', '.join(updated_fields)}).")
-        return JsonResponse({"status": "success", "message": "Rule updated."})
-        # --- END NEW ---
-
-    except ItemComparisonRule.DoesNotExist:
-        logger.warning(f"api_fc_edit_comparison_rule: Rule {rule_id} not found.")
-        return JsonResponse({"status": "error", "message": "Rule not found."}, status=404)
-    except json.JSONDecodeError:
-        logger.warning(f"api_fc_edit_comparison_rule: Invalid JSON from {request.user.username}")
-        return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
-    except Exception as e:
-        logger.error(f"Error editing rule: {e}", exc_info=True)
-        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)
-
-
-@login_required
-@require_POST
-@user_passes_test(is_fleet_commander)
-def api_fc_unignore_rule_group(request):
-    """
-    API endpoint to set the 'ignore_for_rules' flag to False on an EveGroup.
-    """
-    try:
-        data = json.loads(request.body)
-        group_id = data.get('group_id')
-        logger.info(f"FC {request.user.username} un-ignoring group {group_id}")
-        
-        if not group_id:
-            logger.warning(f"api_fc_unignore_rule_group: Missing group_id")
-            return JsonResponse({"status": "error", "message": "Missing group_id."}, status=400)
-            
-        group = get_object_or_404(EveGroup, group_id=group_id)
-        group.ignore_for_rules = False
-        group.save()
-        
-        logger.info(f"Group {group.name} (ID: {group_id}) set to be un-ignored.")
-        return JsonResponse({"status": "success", "message": f"Group '{group.name}' will now appear in the helper."})
-
-    except EveGroup.DoesNotExist:
-        logger.warning(f"api_fc_unignore_rule_group: Group {group_id} not found.")
-        return JsonResponse({"status": "error", "message": "Group not found."}, status=404)
-    except json.JSONDecodeError:
-        logger.warning(f"api_fc_unignore_rule_group: Invalid JSON from {request.user.username}")
-        return JsonResponse({"status": "error", "message": "Invalid request data."}, status=400)
-    except Exception as e:
-        logger.error(f"Error un-ignoring group: {e}", exc_info=True)
-        return JsonResponse({"status": "error", "message": f"An error occurred: {str(e)}"}, status=500)

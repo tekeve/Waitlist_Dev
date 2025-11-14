@@ -7,7 +7,7 @@ app_name = 'waitlist'
 urlpatterns = [
     # --- Main views (from views.py) ---
     path('', views.home, name='home'),
-    path('fittings/', views.fittings_view, name='fittings_view'),
+    # --- MODIFICATION: Removed fittings_view ---
     path('api/submit_fit/', views.api_submit_fit, name='api_submit_fit'),
     path('api/update_fit_status/', views.api_update_fit_status, name='api_update_fit_status'),
     path('api/get_waitlist_html/', views.api_get_waitlist_html, name='api_get_waitlist_html'),
@@ -16,9 +16,7 @@ urlpatterns = [
     path('fc_admin/', fc_views.fc_admin_view, name='fc_admin'),
     path('api/fc_manage_waitlist/', fc_views.api_fc_manage_waitlist, name='api_fc_manage_waitlist'),
     path('api/get_fleet_structure/', fc_views.api_get_fleet_structure, name='api_get_fleet_structure'),
-    # --- NEW: API for fleet overview ---
     path('api/get_fleet_members/', fc_views.api_get_fleet_members, name='api_get_fleet_members'),
-    # --- END NEW ---
     path('api/save_squad_mappings/', fc_views.api_save_squad_mappings, name='api_save_squad_mappings'),
     path('api/fc_invite_pilot/', fc_views.api_fc_invite_pilot, name='api_fc_invite_pilot'),
     path('api/fc_create_default_layout/', fc_views.api_fc_create_default_layout, name='api_fc_create_default_layout'),
@@ -28,20 +26,9 @@ urlpatterns = [
     path('api/fc_delete_wing/', fc_views.api_fc_delete_wing, name='api_fc_delete_wing'),
     path('api/fc_refresh_structure/', fc_views.api_fc_refresh_structure, name='api_fc_refresh_structure'),
 
-    # --- Rule Helper Page ---
-    path('fc_admin/rule_helper/', fc_views.fc_rule_helper_view, name='fc_rule_helper'),
-    # --- NEW: API to fetch all rule data ---
-    path('api/fc_get_rule_helper_data/', fc_views.api_fc_get_rule_helper_data, name='api_fc_get_rule_helper_data'),
-    # --- END NEW ---
-    path('api/fc_save_comparison_rules/', fc_views.api_fc_save_comparison_rules, name='api_fc_save_comparison_rules'),
-    path('api/fc_ignore_rule_group/', fc_views.api_fc_ignore_rule_group, name='api_fc_ignore_rule_group'),
-    path('api/fc_delete_comparison_rule/', fc_views.api_fc_delete_comparison_rule, name='api_fc_delete_comparison_rule'),
-    # --- NEW: Edit and Un-ignore APIs ---
-    path('api/fc_edit_comparison_rule/', fc_views.api_fc_edit_comparison_rule, name='api_fc_edit_comparison_rule'),
-    path('api/fc_unignore_rule_group/', fc_views.api_fc_unignore_rule_group, name='api_fc_unignore_rule_group'),
-    # --- END NEW ---
+    # --- MODIFICATION: Removed all Rule Helper URLs ---
 
     # --- API / Fit views (from api_views.py) ---
     path('api/get_fit_details/', api_views.api_get_fit_details, name='api_get_fit_details'),
-    path('api/get_doctrine_fit_details/', api_views.api_get_doctrine_fit_details, name='api_get_doctrine_fit_details'),
+    # --- MODIFICATION: Removed api_get_doctrine_fit_details ---
 ]
