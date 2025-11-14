@@ -140,28 +140,28 @@ so they can be correctly injected into the base.html <head>.
     }
     /* --- END NEW --- */
 
-    /* --- IMPLANT STYLES --- */
+    /* --- IMPLANT STYLES (COMPACT) --- */
     .implant-other-list {
         list-style: none;
         padding: 0;
         margin: 0;
-        display: flex;
-        flex-direction: column;
+        /* --- MODIFICATION: Was flex, now grid --- */
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
         gap: 4px;
+        /* --- END MODIFICATION --- */
     }
 
     .implant-grid-container {
         display: grid;
-        grid-template-columns: 1fr;
+        /* --- MODIFICATION: Responsive columns --- */
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        /* --- END MODIFICATION --- */
         gap: 10px;
         margin-top: 10px;
     }
 
-    @media (min-width: 768px) {
-        .implant-grid-container {
-            grid-template-columns: 1fr 1fr;
-        }
-    }
+    /* --- MODIFICATION: Removed @media query for implant-grid-container --- */
 
     .implant-column-list {
         list-style: none;
@@ -175,22 +175,29 @@ so they can be correctly injected into the base.html <head>.
     .implant-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 4px 6px;
+        /* --- MODIFICATION: Smaller gap/padding --- */
+        gap: 6px;
+        padding: 2px 4px;
+        /* --- END MODIFICATION --- */
         background: #333;
         border-radius: 5px;
     }
 
         .implant-item img {
-            width: 32px;
-            height: 32px;
+            /* --- MODIFICATION: Smaller icon --- */
+            width: 24px;
+            height: 24px;
+            /* --- END MODIFICATION --- */
             border-radius: 4px;
             flex-shrink: 0;
         }
 
     .implant-info {
         display: flex;
-        flex-direction: column;
+        /* --- MODIFICATION: Now a row --- */
+        align-items: center;
+        gap: 6px;
+        /* --- END MODIFICATION --- */
         flex-grow: 1;
         min-width: 0;
     }
@@ -200,6 +207,9 @@ so they can be correctly injected into the base.html <head>.
         font-weight: bold;
         color: #aaa;
         text-transform: uppercase;
+        /* --- MODIFICATION: Prevent shrinking --- */
+        flex-shrink: 0;
+        /* --- END MODIFICATION --- */
     }
 
     .implant-name {
@@ -209,6 +219,9 @@ so they can be correctly injected into the base.html <head>.
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        /* --- MODIFICATION: Allow growing --- */
+        flex-grow: 1;
+        /* --- END MODIFICATION --- */
     }
 
     /* --- SKILL STYLES --- */
