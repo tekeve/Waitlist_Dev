@@ -125,12 +125,11 @@ so they can be correctly injected into the base.html <head>.
         align-items: center;
         gap: 20px;
         flex-grow: 1; /* Allow it to grow */
-        position: relative; /* For refresh button */
+        /* --- MODIFICATION: Removed position: relative --- */
     }
 
         .header-info img {
             border-radius: 50%;
-            border: 2px solid #555;
         }
 
         .header-info h1 {
@@ -214,22 +213,35 @@ so they can be correctly injected into the base.html <head>.
         display: flex;
         align-items: center;
         justify-content: center;
+        flex-shrink: 0; /* --- NEW: Prevent shrinking --- */
     }
 
         .btn-refresh:hover {
             background: #666;
         }
 
-    /* Positioning for the public data refresh button */
-    #btn-refresh-public {
-        position: absolute;
-        font-size: 1.0em;
-        /* --- MODIFIED: Changed from 0 to 15px to match padding --- */
-        top: 15px;
-        right: 15px;
-        /* --- END MODIFICATION --- */
+    /* --- MODIFICATION: Removed absolute positioning --- */
+    /* #btn-refresh-public { ... } */
+
+    /* --- NEW: Timer and Button controls wrapper --- */
+    .card-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+        margin-left: auto; /* Pushes to the right */
+        align-self: flex-start; /* Aligns to top */
+        flex-shrink: 0;
+    }
+
+    .esi-timer {
+        font-size: 0.8em;
+        font-weight: 600;
+        color: #999;
+        white-space: nowrap;
     }
     /* --- END NEW --- */
+
 
     /* --- IMPLANT STYLES (COMPACT) --- */
     .implant-other-list {
@@ -376,9 +388,14 @@ so they can be correctly injected into the base.html <head>.
         border: 0px solid #555;
     }
 
-        .skill-square.trained {
+        .skill-square.required {
             background-color: #b33a3a;
             border-color: #c94444;
+        }
+
+        .skill-square.trained {
+            background-color: #fff;
+            border-color: #fff;
         }
 
     /* --- GLOBAL LOADING OVERLAY STYLES --- */
@@ -595,15 +612,20 @@ so they can be correctly injected into the base.html <head>.
                 </div>
                 <!-- --- END NEW --- -->
             </div>
-            <!-- --- Public Data Refresh Button --- -->
-            <button class="btn-refresh" id="btn-refresh-public" data-section="public" title="Refresh Corp/Alliance Info">&#8635;</button>
+
+            <!-- --- MODIFICATION: New Button/Timer wrapper --- -->
+            <div class="card-controls">
+                <button class="btn-refresh" id="btn-refresh-public" data-section="public" title="Refresh Corp/Alliance Info">&#8635;</button>
+                <span class="esi-timer" id="public-data-timer"></span>
+            </div>
+            <!-- --- END MODIFICATION --- -->
         </div>
         <!-- --- END CARD 1 --- -->
         <!--
-    ---
-    --- CARD 2: IMPLANTS (MOVED FROM BELOW)
-    ---
-    -->
+        ---
+        --- CARD 2: IMPLANTS (MOVED FROM BELOW)
+        ---
+        -->
         <div class="section header-card-item" id="implants-section">
             <!-- --- NEW: Card-level overlay --- -->
             <div class="card-loading-overlay">
@@ -614,7 +636,12 @@ so they can be correctly injected into the base.html <head>.
 
             <h2>
                 Implants
-                <button class="btn-refresh" data-section="implants" title="Refresh Implants">&#8635;</button>
+                <!-- --- MODIFICATION: New Button/Timer wrapper --- -->
+                <div class="card-controls" style="flex-direction: row; align-items: center; gap: 8px;">
+                    <span class="esi-timer" id="implants-timer"></span>
+                    <button class="btn-refresh" data-section="implants" title="Refresh Implants">&#8635;</button>
+                </div>
+                <!-- --- END MODIFICATION --- -->
             </h2>
 
             <ul class="implant-other-list">
@@ -667,10 +694,10 @@ so they can be correctly injected into the base.html <head>.
         </div>
         <!-- --- END CARD 2 --- -->
         <!--
-    ---
-    --- CARD 3: ALT MANAGEMENT
-    ---
-    -->
+        ---
+        --- CARD 3: ALT MANAGEMENT
+        ---
+        -->
         <div class="header-alts section header-card-item">
             <h2>Alt Management</h2>
             <ul class="alt-list" id="alt-list-container">
@@ -729,7 +756,12 @@ so they can be correctly injected into the base.html <head>.
 
         <h2>
             Skills
-            <button class="btn-refresh" data-section="skills" title="Refresh Skills">&#8635;</button>
+            <!-- --- MODIFICATION: New Button/Timer wrapper --- -->
+            <div class="card-controls" style="flex-direction: row; align-items: center; gap: 8px;">
+                <span class="esi-timer" id="skills-timer"></span>
+                <button class="btn-refresh" data-section="skills" title="Refresh Skills">&#8635;</button>
+            </div>
+            <!-- --- END MODIFICATION --- -->
         </h2>
 
         <div class="skill-grid-container">
@@ -814,6 +846,10 @@ so they can be correctly injected into the base.html <head>.
                         cardOverlay = parentCard.querySelector('.card-loading-overlay');
                     }
 
+                    // --- NEW: Disable all refresh buttons ---
+                    document.querySelectorAll('.btn-refresh').forEach(btn => btn.disabled = true);
+                    // --- END NEW ---
+
                     // Show card-level overlay
                     if (cardOverlay) {
                         cardOverlay.querySelector('p').textContent = `Refreshing ${section}...`;
@@ -839,6 +875,9 @@ so they can be correctly injected into the base.html <head>.
                             // Success, just reload the page
                             window.location.reload();
                         } else {
+                            // --- NEW: Re-enable all buttons on failure ---
+                            document.querySelectorAll('.btn-refresh').forEach(btn => btn.disabled = false);
+                            // --- END NEW ---
                             throw new Error(data.message || 'Refresh failed.');
                         }
                     })
@@ -854,6 +893,10 @@ so they can be correctly injected into the base.html <head>.
                             overlay.innerHTML = `<p style="color: #ff8a8a;">Error refreshing ${section} data.</p>`;
                         }
                         // --- END MODIFICATION ---
+
+                        // --- NEW: Re-enable all buttons on failure ---
+                        document.querySelectorAll('.btn-refresh').forEach(btn => btn.disabled = false);
+                        // --- END NEW ---
                     });
                 });
             });
@@ -910,6 +953,57 @@ so they can be correctly injected into the base.html <head>.
                     });
                 });
             }
+            // --- END NEW ---
+
+            // --- 4. NEW: ESI Cache Timer Initialization ---
+
+            /**
+             * Starts a countdown timer for an ESI cache.
+             * @param {string} elementId The ID of the span element to update.
+             * @param {string|null} expiresISO ISO 8601 string of the expiry time.
+             */
+            function startESITimer(elementId, expiresISO) {
+                const timerElement = document.getElementById(elementId);
+                // Check if element exists and ISO string is not empty/null
+                if (!timerElement || !expiresISO) {
+                    if(timerElement) timerElement.textContent = "--m --s"; // --- MODIFICATION: Show placeholder ---
+                    return;
+                }
+
+                const expiresDate = new Date(expiresISO);
+                let interval = null; // Store interval to clear it
+
+                function updateTimer() {
+                    const now = new Date();
+                    const diffMs = expiresDate - now;
+
+                    if (diffMs <= 0) {
+                        timerElement.textContent = "Refresh available"; // --- MODIFICATION: Changed from "Expired" ---
+                        timerElement.style.color = "#aaa"; // Light grey
+                        if (interval) clearInterval(interval); // Stop the timer
+                    } else {
+                        const diffSecs = Math.floor(diffMs / 1000);
+                        const minutes = Math.floor(diffSecs / 60);
+                        const seconds = diffSecs % 60;
+                        timerElement.textContent = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+                        timerElement.style.color = "#999"; // Default grey
+                    }
+                }
+
+                updateTimer(); // Run once immediately
+                interval = setInterval(updateTimer, 1000); // Update every second
+            }
+
+            // Get ISO strings from context
+            const publicExpires = "{{ public_expires_iso }}";
+            const implantsExpires = "{{ implants_expires_iso }}";
+            const skillsExpires = "{{ skills_expires_iso }}";
+
+            // Initialize timers
+            startESITimer('public-data-timer', publicExpires || null);
+            startESITimer('implants-timer', implantsExpires || null);
+            startESITimer('skills-timer', skillsExpires || null);
+
             // --- END NEW ---
         });
 </script>

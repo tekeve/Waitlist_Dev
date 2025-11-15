@@ -110,6 +110,12 @@ class PilotSnapshot(models.Model):
     implants_json = models.TextField(blank=True, null=True, help_text="JSON response from ESI /implants/ endpoint")
     
     last_updated = models.DateTimeField(auto_now=True)
+    
+    # --- NEW: Fields to store ESI cache expiry times ---
+    skills_cache_expires = models.DateTimeField(null=True, blank=True, help_text="Expiry time of ESI /skills/ endpoint")
+    implants_cache_expires = models.DateTimeField(null=True, blank=True, help_text="Expiry time of ESI /implants/ endpoint")
+    public_data_cache_expires = models.DateTimeField(null=True, blank=True, help_text="Expiry time of ESI /character/ public data")
+    # --- END NEW ---
 
     def get_implant_ids(self):
         """Helper to get implant ID list from JSON."""

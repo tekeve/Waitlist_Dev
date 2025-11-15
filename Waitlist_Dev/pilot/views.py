@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect, resolve_url
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import logout
 from django.utils import timezone
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone as dt_timezone # --- MODIFICATION: Added imports ---
 import json
 # --- MODIFICATION: Removed requests ---
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
@@ -14,7 +14,7 @@ from .models import PilotSnapshot, EveGroup, EveType, EveCategory
 # --- MODIFICATION: Removed ESI client, Token model ---
 from django.db import transaction
 
-# --- MODIFICATION: Import bravado exceptions for the one manual call ---
+# --- MODIFICATION: Import bravado exceptions ---
 from bravado.exception import (
     HTTPNotFound, HTTPForbidden, HTTPBadGateway, 
     HTTPUnauthorized, HTTPInternalServerError, HTTPGatewayTimeout
@@ -34,8 +34,21 @@ from waitlist.helpers import is_fleet_commander
 logger = logging.getLogger(__name__)
 
 
-# --- MODIFICATION: Removed duplicated is_fleet_commander ---
-# --- MODIFICATION: Removed get_refreshed_token_for_character ---
+# --- NEW HELPER FUNCTION (Moved from api_get_implants) ---
+def _parse_esi_expires_header(expires_str: str) -> datetime:
+    """Parses ESI 'Expires' header string to a timezone-aware datetime."""
+    if not expires_str:
+        # Default fallback cache time
+        return timezone.now() + timedelta(minutes=5) 
+    try:
+        # E.g., 'Sat, 15 Nov 2025 03:15:20 GMT'
+        expires_dt = datetime.strptime(expires_str, '%a, %d %b %Y %H:%M:%S %Z').replace(tzinfo=dt_timezone.utc)
+        return expires_dt
+    except ValueError:
+        logger.warning(f"Could not parse ESI expires header: {expires_str}")
+        # Fallback on parse error
+        return timezone.now() + timedelta(minutes=5) 
+# --- END NEW HELPER ---
 
 
 @login_required
@@ -70,12 +83,22 @@ def pilot_detail(request, character_id):
     snapshot, created = PilotSnapshot.objects.get_or_create(character=character)
     
     needs_update = False
-    if created or snapshot.last_updated < (timezone.now() - timedelta(hours=1)):
+    # --- MODIFICATION: Check cache expiry times as well ---
+    now = timezone.now()
+    if created or snapshot.last_updated < (now - timedelta(hours=1)):
         logger.debug(f"Snapshot for {character.character_name} is stale or was just created.")
         needs_update = True
     if not snapshot.skills_json or not snapshot.implants_json:
         logger.debug(f"Snapshot for {character.character_name} is missing skill/implant data.")
         needs_update = True
+    
+    # Check if any ESI cache has expired
+    if (snapshot.skills_cache_expires and snapshot.skills_cache_expires < now) or \
+       (snapshot.implants_cache_expires and snapshot.implants_cache_expires < now) or \
+       (snapshot.public_data_cache_expires and snapshot.public_data_cache_expires < now):
+        logger.debug(f"Snapshot for {character.character_name} has expired ESI cache.")
+        needs_update = True
+    # --- END MODIFICATION ---
         
     # SDE & GROUPING LOGIC (This is fast, it reads from our DB)
     logger.debug(f"Loading skills from snapshot for {character.character_name}")
@@ -155,6 +178,12 @@ def pilot_detail(request, character_id):
         'user_characters': all_user_chars,
         'all_chars_for_header': all_user_chars,
         'main_char_for_header': main_char,
+        
+        # --- NEW: Add cache expiry times ---
+        'public_expires_iso': snapshot.public_data_cache_expires.isoformat() if snapshot.public_data_cache_expires else None,
+        'implants_expires_iso': snapshot.implants_cache_expires.isoformat() if snapshot.implants_cache_expires else None,
+        'skills_expires_iso': snapshot.skills_cache_expires.isoformat() if snapshot.skills_cache_expires else None,
+        # --- END NEW ---
     }
     
     return render(request, 'pilot_detail.html', context)
@@ -267,7 +296,8 @@ def api_refresh_pilot(request, character_id):
     This view runs in the background to fetch and cache all
     ESI data (snapshot and SDE) for a character.
     
-    MODIFIED: Now uses central ESI service and exceptions.
+    MODIFIED: Now uses manual ESI calls to get headers and
+    saves cache expiry times to the PilotSnapshot model.
     """
     
     section = request.GET.get('section', 'all')
@@ -283,17 +313,32 @@ def api_refresh_pilot(request, character_id):
         snapshot, created = PilotSnapshot.objects.get_or_create(character=character)
         all_type_ids_to_cache = set()
 
-        # 2a. Fetch Skills
+        # --- NEW: Get token *once* for all calls ---
+        try:
+            token = esi.get_refreshed_token_for_character(
+                character, 
+                required_scopes=['esi-skills.read_skills.v1', 'esi-clones.read_implants.v1']
+            )
+        except (EsiTokenAuthFailure, EsiScopeMissing, EsiException) as e:
+            # Re-raise to be caught by the outer block
+            raise e
+        # --- END NEW ---
+
+        # 2a. Fetch Skills (MANUAL CALL)
         if section == 'all' or section == 'skills':
             logger.debug(f"Fetching /skills/ for {character_id}")
-            # --- MODIFICATION: Use make_esi_call wrapper ---
-            skills_response = esi.make_esi_call(
-                esi_client.client.Skills.get_characters_character_id_skills,
-                character=character,
-                required_scopes=['esi-skills.read_skills.v1'],
-                character_id=character_id
+            # --- MODIFICATION: Manual call ---
+            skills_op = esi_client.client.Skills.get_characters_character_id_skills(
+                character_id=character_id,
+                token=token.access_token
             )
+            skills_response = skills_op.results()
+            # Get 'Expires' header and save it
+            skills_expires_str = skills_op.future.result().headers.get('Expires')
+            snapshot.skills_cache_expires = _parse_esi_expires_header(skills_expires_str)
+            logger.debug(f"Skills cache expires: {snapshot.skills_cache_expires}")
             # --- END MODIFICATION ---
+
             if 'skills' not in skills_response or 'total_sp' not in skills_response:
                 logger.error(f"Invalid skills response for {character_id}: {skills_response}")
                 raise EsiException(f"Invalid skills response: {skills_response}")
@@ -302,17 +347,21 @@ def api_refresh_pilot(request, character_id):
             all_type_ids_to_cache.update(s['skill_id'] for s in skills_response.get('skills', []))
             logger.info(f"Skills snapshot updated for {character_id}")
 
-        # 2b. Fetch Implants
+        # 2b. Fetch Implants (MANUAL CALL)
         if section == 'all' or section == 'implants':
             logger.debug(f"Fetching /implants/ for {character_id}")
-            # --- MODIFICATION: Use make_esi_call wrapper ---
-            implants_response = esi.make_esi_call(
-                esi_client.client.Clones.get_characters_character_id_implants,
-                character=character,
-                required_scopes=['esi-clones.read_implants.v1'],
-                character_id=character_id
+            # --- MODIFICATION: Manual call ---
+            implants_op = esi_client.client.Clones.get_characters_character_id_implants(
+                character_id=character_id,
+                token=token.access_token
             )
+            implants_response = implants_op.results()
+            # Get 'Expires' header and save it
+            implants_expires_str = implants_op.future.result().headers.get('Expires')
+            snapshot.implants_cache_expires = _parse_esi_expires_header(implants_expires_str)
+            logger.debug(f"Implants cache expires: {snapshot.implants_cache_expires}")
             # --- END MODIFICATION ---
+
             if not isinstance(implants_response, list):
                 logger.error(f"Invalid implants response for {character_id}: {implants_response}")
                 raise EsiException(f"Invalid implants response: {implants_response}")
@@ -321,21 +370,60 @@ def api_refresh_pilot(request, character_id):
             all_type_ids_to_cache.update(implants_response)
             logger.info(f"Implants snapshot updated for {character_id}")
 
-        # 2c. Fetch Public Data (Corp/Alliance)
+        # 2c. Fetch Public Data (MANUAL CALL)
         if section == 'all' or section == 'public':
             logger.debug(f"Fetching public data for {character_id}")
-            # --- MODIFICATION: Use convenience function from ESI service ---
-            public_data = esi.get_character_public_data(character_id)
+            # --- MODIFICATION: Manual call for public data ---
+            public_data_op = esi_client.client.Character.get_characters_character_id(
+                character_id=character_id
+            )
+            public_data = public_data_op.results()
+            public_expires_str = public_data_op.future.result().headers.get('Expires')
             
-            character.corporation_id = public_data.get('corporation_id')
-            character.corporation_name = public_data.get('corporation_name')
-            character.alliance_id = public_data.get('alliance_id')
-            character.alliance_name = public_data.get('alliance_name')
+            # We will also fetch corp/alliance data, which have their own timers.
+            # We'll just use the *shortest* (earliest) one.
+            cache_times = [_parse_esi_expires_header(public_expires_str)]
+
+            corp_id = public_data.get('corporation_id')
+            alliance_id = public_data.get('alliance_id')
+            
+            corp_name = None
+            if corp_id:
+                corp_data_op = esi_client.client.Corporation.get_corporations_corporation_id(
+                    corporation_id=corp_id
+                )
+                corp_data = corp_data_op.results()
+                corp_expires_str = corp_data_op.future.result().headers.get('Expires')
+                cache_times.append(_parse_esi_expires_header(corp_expires_str))
+                corp_name = corp_data.get('name')
+                
+            alliance_name = None
+            if alliance_id:
+                try:
+                    alliance_data_op = esi_client.client.Alliance.get_alliances_alliance_id(
+                        alliance_id=alliance_id
+                    )
+                    alliance_data = alliance_data_op.results()
+                    alliance_expires_str = alliance_data_op.future.result().headers.get('Expires')
+                    cache_times.append(_parse_esi_expires_header(alliance_expires_str))
+                    alliance_name = alliance_data.get('name')
+                except HTTPNotFound: # Use Bravado exception
+                    logger.warning(f"Could not find alliance {alliance_id} for char {character_id} (dead alliance?)")
+                    alliance_name = "N/A" # Handle dead alliances
+            
+            # Save the *earliest* (minimum) expiry time
+            snapshot.public_data_cache_expires = min(cache_times)
+            logger.debug(f"Public data cache expires: {snapshot.public_data_cache_expires}")
+
+            character.corporation_id = corp_id
+            character.corporation_name = corp_name
+            character.alliance_id = alliance_id
+            character.alliance_name = alliance_name
             character.save()
             logger.info(f"Corp/Alliance data for {character_id} saved to DB")
             # --- END MODIFICATION ---
 
-        # 3. Save the snapshot
+        # 3. Save the snapshot (now includes cache times)
         snapshot.save()
         
         # 4. Perform SDE Caching
@@ -345,22 +433,27 @@ def api_refresh_pilot(request, character_id):
         logger.info(f"ESI refresh complete for {character_id} (section: {section})")
         return JsonResponse({"status": "success", "section": section})
 
-    # --- NEW: Catch our custom exceptions ---
-    except EsiTokenAuthFailure as e:
-        logger.warning(f"api_refresh_pilot: Token auth failure for {character_id} ({e.message}), logging user out")
-        logout(request)
-        return JsonResponse({"status": "error", "message": e.message}, status=e.status_code)
-    except (EsiScopeMissing, EsiForbidden, EsiNotFound) as e:
+    # --- NEW: Catch bravado exceptions from manual calls ---
+    except (HTTPNotFound, HTTPForbidden, HTTPBadGateway, HTTPUnauthorized, HTTPInternalServerError, HTTPGatewayTimeout) as e:
+         logger.error(f"Bravado ESI error in api_refresh_pilot for {character_id}: {e}", exc_info=True)
+         # Special case for 401/403 (auth failure)
+         if e.response.status_code in [401, 403]:
+             # Don't log out here, as it might be a temporary ESI error
+             # But do report it clearly
+             return JsonResponse({"status": "error", "message": f"ESI Error: {e.response.text}. Your token might be invalid."}, status=e.response.status_code)
+         return JsonResponse({"status": "error", "message": f"ESI Error: {e.response.text}"}, status=e.response.status_code)
+    # --- Catch our custom exceptions from the token getter ---
+    except (EsiTokenAuthFailure, EsiScopeMissing, EsiException) as e:
         logger.warning(f"api_refresh_pilot: ESI error for {character_id}: {e.message}")
-        return JsonResponse({"status": "error", "message": e.message}, status=e.status_code)
-    except EsiException as e:
-        logger.error(f"Unexpected ESI error in api_refresh_pilot for {character_id}: {e.message}", exc_info=True)
+        # Log out on token failure
+        if isinstance(e, EsiTokenAuthFailure):
+             logout(request)
         return JsonResponse({"status": "error", "message": e.message}, status=e.status_code)
     except Exception as e:
         # Catch non-ESI errors
         logger.error(f"Non-ESI error in api_refresh_pilot for {character_id}: {e}", exc_info=True)
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
-    # --- END NEW ---
+    # --- END MODIFICATION ---
 
 
 @login_required
@@ -368,7 +461,7 @@ def api_get_implants(request):
     """
     Fetches and returns a character's implants as HTML
     for the X-Up modal.
-    --- MODIFIED: Uses central ESI service for token, but manual call for headers ---
+    --- MODIFIED: Uses new _parse_esi_expires_header helper ---
     """
     character_id = request.GET.get('character_id')
     logger.debug(f"User {request.user.username} getting implants for X-Up modal (char {character_id})")
@@ -400,21 +493,14 @@ def api_get_implants(request):
         )
         implants_response = implants_op.results()
         
-        expires_str = implants_op.future.result().headers.get('Expires', [None])[0]
+        expires_str = implants_op.future.result().headers.get('Expires')
         # --- END MODIFICATION ---
         
-        expires_dt = None
-        expires_iso = None
-        if expires_str:
-            try:
-                expires_dt = datetime.strptime(expires_str, '%a, %d %b %Y %H:%M:%S %Z').replace(tzinfo=timezone.utc)
-                expires_iso = expires_dt.isoformat()
-            except ValueError:
-                expires_dt = timezone.now() + timedelta(minutes=2) # Fallback
-                expires_iso = expires_dt.isoformat()
-        else:
-            expires_dt = timezone.now() + timedelta(minutes=2) # Fallback
-            expires_iso = expires_dt.isoformat()
+        # --- MODIFICATION: Use new helper function ---
+        expires_dt = _parse_esi_expires_header(expires_str)
+        expires_iso = expires_dt.isoformat()
+        # --- END MODIFICATION ---
+        
         logger.debug(f"Implant cache for {character_id} expires: {expires_iso}")
 
         if not isinstance(implants_response, list):

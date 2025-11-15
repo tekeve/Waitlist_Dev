@@ -35,6 +35,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 # Load from .env, default to False if not set
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+print(f"--- SERVER STARTING: DEBUG IS SET TO {DEBUG} ---") # <--- ADD THIS
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '180.181.208.178']
 
@@ -93,7 +94,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'eve_waitlist.wsgi.application'
+ASGI_APPLICATION = 'eve_waitlist.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
@@ -172,7 +173,7 @@ ESI_SSO_CLIENT_ID = os.environ.get('ESI_SSO_CLIENT_ID')
 ESI_SSO_CLIENT_SECRET = os.environ.get('ESI_SSO_CLIENT_SECRET')
 
 # This MUST point to our /auth/callback/ path
-ESI_SSO_CALLBACK_URL = 'http://127.0.0.1:8000/auth/callback/'
+ESI_SSO_CALLBACK_URL = os.environ.get('ESI_SSO_CALLBACK_URL', 'http://127.0.0.1:8000/auth/callback/')
 
 LOGIN_REDIRECT_URL = '/'  # Redirect to homepage after login
 LOGOUT_REDIRECT_URL = '/'
@@ -195,6 +196,14 @@ ESI_SSO_SCOPES_FC = [
 ]
 # Our esi_login view will now choose one of the two lists above.
 
+# --- NEW: DYNAMIC LOGGING LEVEL ---
+# This will set the log level based on the DEBUG flag
+if DEBUG:
+    LOG_LEVEL = 'DEBUG'
+else:
+    LOG_LEVEL = 'INFO'
+# --- END NEW ---
+
 # --- LOGGING CONFIGURATION
 LOGGING = {
     'version': 1,
@@ -216,7 +225,7 @@ LOGGING = {
     # Define where the log messages go
     'handlers': {
         'console': {
-            'level': 'DEBUG', # Show DEBUG and higher messages
+            'level': LOG_LEVEL, # --- MODIFIED ---
             'class': 'logging.StreamHandler', # Send to console
             'formatter': 'verbose' # Use the 'verbose' format
         },
@@ -227,25 +236,25 @@ LOGGING = {
         # This is the root logger. It catches everything.
         '': {
             'handlers': ['console'],
-            'level': 'INFO', # Root level is INFO
+            'level': LOG_LEVEL, # --- MODIFIED ---
             'propagate': True,
         },
         # This logger is specific to our 'waitlist' app
         'waitlist': {
             'handlers': ['console'],
-            'level': 'DEBUG', # Show DEBUG messages for our app
+            'level': LOG_LEVEL, # --- MODIFIED ---
             'propagate': False, # Don't send to root logger
         },
         # This logger is specific to our 'pilot' app
         'pilot': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL, # --- MODIFIED ---
             'propagate': False,
         },
         # This logger is specific to our 'esi_auth' app
         'esi_auth': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL, # --- MODIFIED ---
             'propagate': False,
         },
     },
