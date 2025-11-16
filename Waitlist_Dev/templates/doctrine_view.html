@@ -1,0 +1,607 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+<!-- Set the page title -->
+{% block title %}Doctrine Fittings{% endblock %}
+
+{% block styles %}
+<style>
+    .container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 0 20px;
+    }
+
+    h1 {
+        border-bottom: 0px solid #444;
+        padding-bottom: 10px;
+        margin-top: 0;
+    }
+
+    /* ---
+    --- NEW: TAB BAR & SEARCH
+    --- */
+    .doctrine-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #2a2a2a;
+        border-radius: 8px;
+        padding: 8px;
+        margin: 20px 0;
+    }
+
+    .tab-bar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #333;
+        border-radius: 6px;
+        padding: 4px;
+    }
+
+    .tab-button {
+        background: transparent;
+        border: none;
+        border-radius: 5px;
+        padding: 8px 16px;
+        font-size: 1em;
+        font-weight: 600;
+        color: #aaa;
+        cursor: pointer;
+        transition: background-color 0.2s, color 0.2s;
+    }
+
+        .tab-button.active {
+            background: #663399; /* Purple accent */
+            color: #fff;
+        }
+
+        .tab-button:not(.active):hover {
+            background: #444;
+            color: #fff;
+        }
+
+    .search-bar {
+        background: #333;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-size: 0.9em;
+        color: #fff;
+        width: 300px;
+        box-sizing: border-box; /* Include padding in width */
+    }
+
+        .search-bar::placeholder {
+            color: #888;
+        }
+    /* --- END TABS & SEARCH --- */
+
+
+    /* ---
+    --- FLEET/CATEGORY HEADERS
+    --- */
+    .tab-panel {
+        display: none; /* Hidden by default */
+        animation: fadeIn 0.3s ease-in-out;
+    }
+
+        .tab-panel.active {
+            display: block; /* Shown by JS */
+        }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .category-header {
+        font-size: 1.5em;
+        font-weight: 600;
+        color: #ddd;
+        border-bottom: 0px solid #444;
+        padding-bottom: 8px;
+        margin: 25px 0 15px 0;
+    }
+
+    /* ---
+    --- NEW: COLLAPSIBLE HULL SECTION
+    --- */
+    .hull-group {
+        margin-bottom: 10px;
+        border-radius: 8px;
+        background: #2a2a2a;
+        overflow: hidden; /* Needed for animation */
+        transition: opacity 0.3s, max-height 0.3s, padding 0.3s, margin 0.3s;
+        opacity: 1;
+        max-height: 1000px; /* Set a large max-height for open state */
+    }
+
+        /* This class is added by search JS to hide empty groups */
+        .hull-group.hidden-by-search {
+            opacity: 0;
+            max-height: 0;
+            padding: 0;
+            margin: 0;
+        }
+
+    .hull-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #333;
+        cursor: pointer;
+        width: 100%;
+        border: none;
+        text-align: left;
+        color: #fff;
+        font-size: 1em;
+        transition: background-color 0.2s;
+    }
+
+        .hull-header:hover {
+            background: #3a3a3a;
+        }
+
+    .hull-header-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .hull-header-name {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: #fff;
+    }
+
+    .hull-toggle-icon {
+        margin-left: auto;
+        font-size: 1.5em;
+        font-weight: bold;
+        transition: transform 0.2s;
+    }
+
+    .hull-header.active .hull-toggle-icon {
+        transform: rotate(90deg);
+    }
+    /* --- END HULL SECTION --- */
+
+
+    /* --- MODIFICATION: Renamed to hull-fits-grid --- */
+    .hull-fits-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 10px;
+        /* --- MODIFICATION: Set top/bottom padding to 0 when collapsed --- */
+        padding: 0 10px;
+        /* --- END MODIFICATION --- */
+        /* --- NEW: For collapse animation --- */
+        max-height: 0;
+        overflow: hidden;
+        /* --- MODIFICATION: Reduced transition time from 0.3s to 0.2s --- */
+        transition: max-height 0.2s ease-out, padding 0.2s ease-out;
+    }
+
+    .hull-header.active + .hull-fits-grid {
+        /* --- MODIFICATION: Remove fixed max-height. JS will handle this. --- */
+        /* max-height: 2000px; */
+        /* --- END MODIFICATION --- */
+        /* --- MODIFICATION: This padding will be animated back in on open --- */
+        padding: 10px;
+        /* --- END MODIFICATION --- */
+        /* --- MODIFICATION: Reduced transition time from 0.5s to 0.3s --- */
+        transition: max-height 0.3s ease-in, padding 0.3s ease-in;
+    }
+    /* --- END MODIFICATION --- */
+
+
+    .ship-card-button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #2a2a2a;
+        border: 0px solid #444;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        cursor: pointer;
+        transition: background-color 0.2s, transform 0.2s;
+        text-align: left;
+        /* --- MODIFICATION: Removed color: #eee; --- */
+        /* --- NEW: for search filtering --- */
+        transition: opacity 0.3s, max-height 0.3s, padding 0.3s, margin 0.3s;
+        opacity: 1;
+        max-height: 100px;
+        overflow: hidden;
+    }
+
+        .ship-card-button.hidden-by-search {
+            opacity: 0;
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            margin-top: 0;
+            margin-bottom: 0;
+            /* We hide it this way so transitions work */
+        }
+
+        .ship-card-button:hover {
+            background: #333;
+            transform: translateY(-2px);
+        }
+
+    .ship-card-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 0px solid #555;
+        flex-shrink: 0;
+    }
+
+    .ship-card-info {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        gap: 5px; /* --- NEW: Add gap between name, tiers, desc --- */
+    }
+
+    .ship-card-name {
+        font-size: 1.1em;
+        font-weight: 600;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ---
+    --- NEW: TIER TAGS
+    --- */
+    .tier-tags {
+        display: flex;
+        gap: 6px;
+    }
+
+    .tier-tag {
+        font-size: 0.75em;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* --- NEW: TANK TAG STYLES --- */
+    /* This re-uses the .tier-tag base styles */
+    .tank-tag {
+        /* specific overrides can go here */
+    }
+
+    .tank-ARMOR {
+        background-color: #c25428; /* FC Admin Orange */
+        color: #fff;
+    }
+
+    .tank-SHIELD {
+        background-color: #3b5998; /* Add Char Blue */
+        color: #fff;
+    }
+    /* --- END NEW --- */
+
+    /* Hull Tiers (Sorted Optimal -> Entry) */
+    .hull-3_OPTIMAL {
+        background-color: #28a745;
+        color: #fff;
+    }
+    /* Green */
+    .hull-2_INTERMEDIATE {
+        background-color: #17a2b8;
+        color: #fff;
+    }
+    /* Teal */
+    .hull-1_ENTRY {
+        background-color: #495057;
+        color: #fff;
+    }
+    /* Grey */
+
+    /* Fit Tiers (Sorted Starter -> Optimal) */
+    .fit-1_STARTER {
+        background-color: #6c757d;
+        color: #fff;
+    }
+    /* Dark Grey */
+    .fit-2_INTERMEDIATE {
+        background-color: #007bff;
+        color: #fff;
+    }
+    /* Blue */
+    .fit-3_OPTIMAL {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    /* Yellow */
+    /* --- END NEW TIERS --- */
+
+
+    .ship-card-description {
+        font-size: 0.9em;
+        /* --- MODIFICATION: Set color to light grey --- */
+        color: #aaa;
+        /* --- END MODIFICATION --- */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container">
+    <h1>Doctrine Fittings</h1>
+    <p style="color: #ccc; margin-top: -10px; margin-bottom: 20px;">
+        These are the approved doctrine fits for our fleets. Click on any fit to see the full details.
+    </p>
+
+    <!--
+    ---
+    --- NEW: TABBED INTERFACE
+    ---
+    -->
+    <div class="doctrine-controls">
+        <div class="tab-bar" id="doctrine-tab-bar">
+            {% for fleet in grouped_fleets %}
+            <button class="tab-button {% if forloop.first %}active{% endif %}" data-tab="fleet-{{ fleet.fleet_name|slugify }}">
+                {{ fleet.fleet_name }}
+            </button>
+            {% endfor %}
+        </div>
+        <input type="search" class="search-bar" id="doctrine-search-bar" placeholder="Search by ship...">
+    </div>
+
+    <div class="tab-content" id="doctrine-tab-content">
+        {% for fleet in grouped_fleets %}
+        <div class="tab-panel {% if forloop.first %}active{% endif %}" id="fleet-{{ fleet.fleet_name|slugify }}">
+
+            {% for category in fleet.categories %}
+            <div class="category-section" data-category="{{ category.name }}">
+                <h2 class="category-header">{{ category.name }}</h2>
+
+                <!--
+                ---
+                --- NEW: HULL GROUP LOOP
+                ---
+                -->
+                {% for hull in category.hull_groups %}
+                <div class="hull-group" data-hull-name="{{ hull.ship_name }}">
+                    <!-- Collapsible Header -->
+                    <button class="hull-header">
+                        <img src="https://images.evetech.net/types/{{ hull.ship_type_id }}/icon?size=64"
+                             alt="{{ hull.ship_name }}"
+                             class="hull-header-icon">
+                        <span class="hull-header-name">{{ hull.ship_name }}</span>
+                        <span class="hull-toggle-icon">►</span>
+                    </button>
+
+                    <!-- Grid of fits (starts collapsed) -->
+                    <div class="hull-fits-grid">
+                        {% for fit in hull.fits %}
+                        <button class="ship-card-button"
+                                onclick="openDoctrineFitModal({{ fit.id }})">
+
+                            {% if fit.ship_type %}
+                            <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                                 alt="{{ fit.ship_type.name }}"
+                                 class="ship-card-icon">
+                            {% else %}
+                            <img src="https://placehold.co/64x64/2a2a2a/999?text=?"
+                                 alt="Unknown Ship"
+                                 class="ship-card-icon">
+                            {% endif %}
+
+                            <div class="ship-card-info">
+                                <span class="ship-card-name" title="{{ fit.name }}">{{ fit.name }}</span>
+
+                                <div class="tier-tags">
+                                    {% if fit.tank_type %}
+                                    <span class="tier-tag tank-tag tank-{{ fit.tank_type }}">{{ fit.get_tank_type_display }}</span>
+                                    {% endif %}
+
+                                    {% if fit.hull_tier %}
+                                    <span class="tier-tag hull-{{ fit.hull_tier }}">{{ fit.get_hull_tier_display }} Hull</span>
+                                    {% endif %}
+                                    {% if fit.fit_tier %}
+                                    <span class="tier-tag fit-{{ fit.fit_tier }}">{{ fit.get_fit_tier_display }} Fit</span>
+                                    {% endif %}
+                                </div>
+
+                                <span class="ship-card-description" title="{{ fit.description|default:'' }}">
+                                    {{ fit.description|default:''|truncatewords:10 }}
+                                </span>
+                            </div>
+                        </button>
+                        {% endfor %}
+                    </div><!-- End .hull-fits-grid -->
+                </div><!-- End .hull-group -->
+                {% endfor %}
+                <!--
+                ---
+                --- END NEW HULL GROUP LOOP
+                ---
+                -->
+
+            </div>
+            {% empty %}
+            <p>No doctrine fits found for this fleet type.</p>
+            {% endfor %}
+
+        </div>
+        {% empty %}
+        <p>There are no doctrine fits configured in the database.</p>
+        {% endfor %}
+    </div>
+    <!--
+    ---
+    --- END NEW STRUCTURE
+    ---
+    -->
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const tabBar = document.getElementById('doctrine-tab-bar');
+        const tabContent = document.getElementById('doctrine-tab-content');
+        const searchBar = document.getElementById('doctrine-search-bar');
+
+        if (!tabBar || !tabContent) return;
+
+        // --- 1. Tab Switching Logic ---
+        tabBar.addEventListener('click', (e) => {
+            const targetButton = e.target.closest('.tab-button');
+            if (!targetButton) return;
+
+            // Get target tab ID from button's data attribute
+            const tabId = targetButton.dataset.tab;
+            if (!tabId) return;
+
+            // 1.1 Update Tab Buttons
+            tabBar.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            targetButton.classList.add('active');
+
+            // 1.2 Update Tab Panels
+            tabContent.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            const activePanel = document.getElementById(tabId);
+            if (activePanel) {
+                activePanel.classList.add('active');
+            }
+
+            // 1.3 Trigger search filtering on the new active panel
+            // This ensures the search text is applied when switching tabs
+            triggerSearch(activePanel);
+        });
+
+        // --- 2. Search Bar Logic ---
+        searchBar.addEventListener('input', () => {
+            const activePanel = tabContent.querySelector('.tab-panel.active');
+            if (activePanel) {
+                triggerSearch(activePanel);
+            }
+        });
+
+        function triggerSearch(panel) {
+            const searchTerm = searchBar.value.toLowerCase().trim();
+            const fitCards = panel.querySelectorAll('.ship-card-button');
+
+            fitCards.forEach(card => {
+                const shipNameElem = card.querySelector('.ship-card-name');
+                // --- MODIFICATION: Search hull name as well ---
+                const hullGroup = card.closest('.hull-group');
+                const hullName = hullGroup ? hullGroup.dataset.hullName.toLowerCase() : '';
+                // --- END MODIFICATION ---
+
+                let cardText = '';
+                if (shipNameElem) {
+                    cardText = shipNameElem.textContent.toLowerCase();
+                }
+
+                // --- MODIFICATION: Check both ship name and fit name ---
+                if (cardText.includes(searchTerm) || hullName.includes(searchTerm)) {
+                    // --- END MODIFICATION ---
+                    card.classList.remove('hidden-by-search');
+                } else {
+                    card.classList.add('hidden-by-search');
+                }
+            });
+
+
+            // --- MODIFICATION: Update category/hull visibility based on search ---
+            const categories = panel.querySelectorAll('.category-section');
+            categories.forEach(category => {
+                let visibleHullsInThisCategory = 0;
+
+                // First, check all hull groups within this category
+                const hullGroups = category.querySelectorAll('.hull-group');
+                hullGroups.forEach(hullGroup => {
+                    const visibleCards = hullGroup.querySelectorAll('.ship-card-button:not(.hidden-by-search)');
+
+                    if (visibleCards.length > 0) {
+                        // This hull group has visible fits
+                        hullGroup.classList.remove('hidden-by-search');
+                        visibleHullsInThisCategory++;
+
+                        // If searching, auto-expand the hull to show results
+                        if (searchTerm) {
+                            hullGroup.querySelector('.hull-header').classList.add('active');
+                            // --- MODIFICATION: Set max-height to its actual scrollHeight ---
+                            const grid = hullGroup.querySelector('.hull-fits-grid');
+                            grid.style.maxHeight = grid.scrollHeight + 'px';
+                            // --- END MODIFICATION ---
+                            hullGroup.querySelector('.hull-toggle-icon').textContent = '▼';
+                        }
+
+                    } else {
+                        // This hull group has NO visible fits
+                        hullGroup.classList.add('hidden-by-search');
+                    }
+                });
+
+                // Now, check if the category itself is empty
+                if (visibleHullsInThisCategory === 0) {
+                    category.style.display = 'none';
+                } else {
+                    category.style.display = 'block';
+                }
+            });
+            // --- END MODIFICATION ---
+        }
+
+        // ---
+        // --- NEW: 3. Collapsible Hull Logic
+        // ---
+        tabContent.addEventListener('click', (e) => {
+            const header = e.target.closest('.hull-header');
+            if (!header) return;
+
+            const grid = header.nextElementSibling;
+            const icon = header.querySelector('.hull-toggle-icon');
+
+            if (header.classList.contains('active')) {
+                // Collapse it
+                header.classList.remove('active');
+                // --- MODIFICATION: Set max-height to 0 ---
+                grid.style.maxHeight = '0';
+                // --- END MODIFICATION ---
+                icon.textContent = '►';
+            } else {
+                // Expand it
+                header.classList.add('active');
+                // --- MODIFICATION: Set max-height to its actual scrollHeight ---
+                grid.style.maxHeight = grid.scrollHeight + 'px';
+                // --- END MODIFICATION ---
+                icon.textContent = '▼';
+            }
+        });
+
+    });
+
+    // The `openDoctrineFitModal` function is available globally from base.html
+</script>
+{% endblock %}

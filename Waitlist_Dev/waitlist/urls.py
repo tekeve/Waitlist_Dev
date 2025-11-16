@@ -7,7 +7,11 @@ app_name = 'waitlist'
 urlpatterns = [
     # --- Main views (from views.py) ---
     path('', views.home, name='home'),
-    # --- MODIFICATION: Removed fittings_view ---
+    # --- NEW: Public Doctrine Page ---
+    path('doctrine/', views.doctrine_view, name='doctrine_view'),
+    # --- NEW: Public API for Doctrine Fits ---
+    path('api/get_doctrine_fit_details/', views.api_get_doctrine_fit_details, name='api_get_doctrine_fit_details'),
+    
     path('api/submit_fit/', views.api_submit_fit, name='api_submit_fit'),
     path('api/update_fit_status/', views.api_update_fit_status, name='api_update_fit_status'),
     path('api/get_waitlist_html/', views.api_get_waitlist_html, name='api_get_waitlist_html'),
@@ -26,9 +30,6 @@ urlpatterns = [
     path('api/fc_delete_wing/', fc_views.api_fc_delete_wing, name='api_fc_delete_wing'),
     path('api/fc_refresh_structure/', fc_views.api_fc_refresh_structure, name='api_fc_refresh_structure'),
 
-    # --- MODIFICATION: Removed all Rule Helper URLs ---
-
     # --- API / Fit views (from api_views.py) ---
     path('api/get_fit_details/', api_views.api_get_fit_details, name='api_get_fit_details'),
-    # --- MODIFICATION: Removed api_get_doctrine_fit_details ---
 ]

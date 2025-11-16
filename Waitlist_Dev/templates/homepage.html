@@ -42,10 +42,13 @@
 
     {% if user.is_authenticated %}
 
-    <!-- This page is now just a landing zone, the user will be -->
-    <!-- redirected to the waitlist view by the logic in waitlist/views.py -->
-    <!-- If they land here, something is likely misconfigured, -->
-    <!-- but we can give them a link. -->
+    <!--
+    This page is now just a landing zone, the user will be
+    redirected to the waitlist view by the logic in waitlist/views.py.
+    However, since the waitlist view (/) is the new "home",
+    the home view logic will just render the waitlist.
+    This template will now only be seen by non-authenticated users.
+    -->
     <p>Welcome, <strong>{{ user.first_name }}</strong>!</p>
     <p>Loading waitlist...</p>
     <script>
@@ -56,7 +59,16 @@
     {% else %}
     <!-- Show this if the user is NOT logged in -->
     <p>Please log in with EVE SSO to join the waitlist.</p>
+    <p>
+        You can also view the current
+        <a href="{% url 'waitlist:doctrine_view' %}" style="color: #61aeee; text-decoration: none;">Doctrine Fittings</a>
+        before logging in.
+    </p>
 
+    <!--
+    The main login button is now in the header,
+    but we can keep this one as a call-to-action.
+    -->
     <a href="{% url 'esi_auth:login' %}" class="login-btn">
         Log In with EVE Online
     </a>

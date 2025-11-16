@@ -81,7 +81,9 @@ class Fleet(models.Model):
     def __str__(self):
         if self.is_active and self.fleet_commander:
              return f"{self.description} (FC: {self.fleet_commander.character_name})"
-        return f"{self.description} (Inactive)"
+        # --- MODIFICATION: Show description for admin dropdown ---
+        return self.description
+        # --- END MODIFICATION ---
 
 class FleetWaitlist(models.Model):
     """
@@ -213,7 +215,30 @@ class DoctrineFit(models.Model):
     """
     Stores an approved doctrine fit for auto-approval.
     """
-    name = models.CharField(max_length=255, unique=True, help_text="e.g., 'Standard Vargur', 'Logi Basilisk'")
+    # --- NEW: Tier Choices ---
+    # --- MODIFICATION: Added numeric prefixes for correct sorting ---
+    class FitTier(models.TextChoices):
+        STARTER = '1_STARTER', 'Starter'
+        INTERMEDIATE = '2_INTERMEDIATE', 'Intermediate'
+        OPTIMAL = '3_OPTIMAL', 'Optimal'
+        
+    class HullTier(models.TextChoices):
+        ENTRY = '1_ENTRY', 'Entry'
+        INTERMEDIATE = '2_INTERMEDIATE', 'Intermediate'
+        OPTIMAL = '3_OPTIMAL', 'Optimal'
+    # --- END MODIFICATION ---
+    
+    # --- NEW: Tank Type Choices ---
+    class TankType(models.TextChoices):
+        SHIELD = 'SHIELD', 'Shield'
+        ARMOR = 'ARMOR', 'Armor'
+    # --- END NEW ---
+
+    name = models.CharField(
+        max_length=255, 
+        unique=False,  # --- MODIFICATION: Set unique=False ---
+        help_text="e.g., 'Standard Vargur', 'Logi Basilisk'"
+    )
     
     # Link to the ship hull type in our mini-SDE
     ship_type = models.ForeignKey(
@@ -231,6 +256,42 @@ class DoctrineFit(models.Model):
         db_index=True
     )
     
+    # --- NEW: Fleet and Tier Fields ---
+    fleet_type = models.ForeignKey(
+        Fleet,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The fleet type this fit is intended for (e.g., Headquarters, Assaults)."
+    )
+    fit_tier = models.CharField(
+        max_length=20,
+        choices=FitTier.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="The quality tier of the fit (e.g., Starter, Optimal)."
+    )
+    hull_tier = models.CharField(
+        max_length=20,
+        choices=HullTier.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="The tier of the hull itself (e.g., Entry, Optimal)."
+    )
+    
+    # --- NEW: Tank Type Field ---
+    tank_type = models.CharField(
+        max_length=20,
+        choices=TankType.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="The primary tank type of the fit (e.g., Shield, Armor)."
+    )
+    # --- END NEW ---
+    
     # The actual items and quantities, stored as JSON
     # Example: {"31718": 1, "2048": 8, "2605": 8, ...}
     # (Keys are type_ids as strings, values are quantities)
@@ -245,7 +306,8 @@ class DoctrineFit(models.Model):
     raw_fit_eft = models.TextField(
         blank=True, 
         null=True, 
-        help_text="The raw EFT-formatted fit string."
+        help_text="The raw EFT-formatted fit string.",
+        unique=True  # --- MODIFICATION: Set unique=True ---
     )
     parsed_fit_json = models.TextField(
         blank=True, 

@@ -7,10 +7,6 @@
     <!-- The title block can be overridden by child templates -->
     <title>{% block title %}EVE Waitlist{% endblock %}</title>
 
-    <!--
-    FIX: The main <style> tag now closes *before* the block,
-    so child templates can inject their own full <style> tags.
-    -->
     <style>
         /* --- GLOBAL STYLES --- */
         :root {
@@ -149,8 +145,6 @@
                 color: #fff;
             }
 
-        /* --- NEW: Header Button Styles --- */
-        /* These styles were moved from homepage.html */
         .header-btn {
             display: inline-block;
             padding: 8px 16px; /* Match profile-btn */
@@ -180,10 +174,8 @@
                 background-color: #4e71bb;
             }
 
-        /* --- NEW: X-UP Button Style --- */
         .xup-btn {
             background-color: #a67c00;
-            /* margin-left: 10px; <-- REMOVED */
         }
 
             .xup-btn:hover {
@@ -197,7 +189,7 @@
             }
 
 
-        /* --- NEW: X-UP MODAL STYLES --- */
+        /* --- MODAL STYLES --- */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -221,18 +213,15 @@
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             width: 90%;
-            max-width: 1000px; /* MODIFIED: Modal width */
+            max-width: 1000px;
             display: flex;
             flex-direction: column;
-            /* Max height for modal, enables scrolling */
             max-height: 90vh;
         }
 
-        /* --- NEW: Fit Detail Modal Width --- */
-        /* Make the fit detail modal wider */
-        #fit-detail-modal-overlay .modal-content,
-        #doctrine-fit-modal-overlay .modal-content {
-            max-width: 1000px; /* MODIFIED: Widen to 1000px */
+        /* Make the x-up modal narrower */
+        #xup-modal-overlay .modal-content {
+            max-width: 700px;
         }
 
         .modal-header {
@@ -264,26 +253,29 @@
 
         .modal-body {
             padding: 20px;
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
             overflow-y: auto; /* Allow modal body to scroll */
         }
 
-        /* --- NEW: Fit Detail Modal Body --- */
-        #fit-detail-modal-body,
-        #doctrine-fit-modal-body { /* --- ADDED Doctrine Modal --- */
-            display: block; /* Override grid */
-            padding: 0; /* Remove padding */
-            /* --- NEW: Set max-height for scrolling --- */
-            max-height: 70vh;
-            overflow-y: auto;
+        /* --- X-Up Modal Body Grid --- */
+        #xup-modal-body {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
         }
 
         @media (min-width: 768px) {
-            #xup-modal-overlay .modal-body {
-                grid-template-columns: 2.5fr 2.5fr; /* MODIFIED: Fit text vs implant list */
+            #xup-modal-body {
+                grid-template-columns: 2.5fr 2.5fr;
             }
+        }
+
+        /* --- Fit Detail Modal Body (No padding, block) --- */
+        #fit-detail-modal-body,
+        #doctrine-fit-modal-body { /* --- ADDED Doctrine Modal --- */
+            display: block;
+            padding: 0;
+            max-height: 70vh;
+            overflow-y: auto;
         }
 
         .form-group {
@@ -320,11 +312,9 @@
             padding: 15px;
             max-height: 340px; /* Match form height */
             overflow-y: auto;
-            /* --- MODIFICATION: Add flex properties --- */
             display: flex;
             flex-direction: column;
             gap: 10px;
-            /* --- END MODIFICATION --- */
         }
 
             .implant-display h3 {
@@ -334,9 +324,9 @@
                 border-bottom: 0px solid #444;
                 padding-bottom: 10px;
             }
-        /* Spinner for implant loading */
+
         .implant-spinner,
-        .modal-spinner { /* --- ADDED: Generic spinner --- */
+        .modal-spinner {
             width: 30px;
             height: 30px;
             border: 4px solid #555;
@@ -347,7 +337,7 @@
         }
 
         #fit-detail-modal-body .modal-spinner,
-        #doctrine-fit-modal-body .modal-spinner { /* --- ADDED Doctrine Modal --- */
+        #doctrine-fit-modal-body .modal-spinner {
             margin: 40px auto; /* More margin */
         }
 
@@ -357,22 +347,19 @@
             }
         }
 
-        /* ---
-        --- MODIFICATION: Replaced modal implant styles
-        --- with compact styles from pilot_detail.html
-        --- */
+        /* Compact Implant List Styles (for X-Up Modal) */
         .implant-other-list {
             list-style: none;
             padding: 0;
             margin: 0;
             display: grid;
-            grid-template-columns: 1fr; /* Modal is compact, 1 column is fine */
+            grid-template-columns: 1fr;
             gap: 4px;
         }
 
         .implant-grid-container {
             display: grid;
-            grid-template-columns: 1fr; /* Stack columns in modal */
+            grid-template-columns: 1fr;
             gap: 10px;
         }
 
@@ -395,14 +382,14 @@
         }
 
             .implant-item img {
-                width: 24px; /* Compact icon */
+                width: 24px;
                 height: 24px;
                 border-radius: 4px;
                 flex-shrink: 0;
             }
 
         .implant-info {
-            display: flex; /* This is a ROW */
+            display: flex;
             align-items: center;
             gap: 6px;
             flex-grow: 1;
@@ -426,30 +413,14 @@
             text-overflow: ellipsis;
             flex-grow: 1;
         }
-        /* ---
-        --- END MODIFICATION
-        --- */
 
-
-        /* ---
-        --- NEW SLOTTED FIT MODAL STYLES (REPLACES .fit-detail-list)
-        --- */
+        /* --- Slotted Fit Modal Styles (for Fit/Doctrine Detail) --- */
         .fit-modal-layout {
-            /* --- MODIFIED: Removed grid layout --- */
             display: block;
-            gap: 15px;
             padding: 15px;
             font-family: 'Consolas', 'Monaco', monospace;
             font-size: 0.9em;
         }
-
-        @media (max-width: 768px) {
-            .fit-modal-layout {
-                grid-template-columns: 1fr; /* Stack on mobile */
-            }
-        }
-
-        /* --- REMOVED: .fit-modal-ship-render styles --- */
 
         .fit-modal-slot-banks {
             display: flex;
@@ -493,12 +464,9 @@
             gap: 5px;
             padding: 2px 5px;
             border-radius: 4px;
-            /* --- THIS LINE WAS REMOVED --- */
-            /* white-space: pre; */
-            /* --- END REMOVAL --- */
             transition: background-color 0.3s ease, color 0.3s ease;
-            position: relative; /* For sub-buttons */
-            min-height: 28px; /* Ensure consistent height */
+            position: relative;
+            min-height: 28px;
             box-sizing: border-box;
         }
             /* Alternating stripes */
@@ -523,56 +491,42 @@
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
-            /* ---
-        --- END NEW SLOTTED FIT STYLES
-        --- */
 
-
-            /* ---
-        --- MODIFIED: STYLES FOR COMPARISON (FC MODAL)
-        --- These now apply to .fit-slot-item instead of .fit-detail-list li
-        --- */
-
-            /* Highlighting for problem items */
+            /* Comparison styles */
             .fit-slot-item.fit-item-problem {
-                background-color: #5d3a00; /* Dark orange background */
-                color: #ffc107; /* Yellow text */
+                background-color: #5d3a00;
+                color: #ffc107;
                 flex-wrap: wrap;
-                padding-right: 40px; /* Space for button */
+                padding-right: 40px;
             }
 
-            /* Highlighting for accepted sub items */
             .fit-slot-item.fit-item-accepted-sub {
-                background-color: #1c4a24; /* Dark green background */
-                color: #63d471; /* Bright green text */
+                background-color: #1c4a24;
+                color: #63d471;
                 flex-wrap: wrap;
             }
 
-                /* --- THIS IS THE NEW FIX --- */
                 .fit-slot-item.fit-item-accepted-sub .fit-item-name {
-                    flex-grow: 0; /* Stop it from growing */
-                    flex-shrink: 1; /* Allow it to shrink if needed */
+                    flex-grow: 0;
                 }
-        /* --- END NEW FIX --- */
 
-        /* Substitution Action Buttons (Same as before) */
         .sub-action-buttons {
             position: absolute;
             top: 50%;
-            right: 5px; /* Position from the right edge */
-            transform: translateY(-50%); /* Vertically center */
+            right: 5px;
+            transform: translateY(-50%);
             display: flex;
-            gap: 3px; /* Small gap between buttons */
-            z-index: 1; /* Ensure they are above other content if overlapping */
+            gap: 3px;
+            z-index: 1;
         }
 
             .sub-action-buttons .fc-btn {
-                padding: 3px 6px; /* Smaller padding for these buttons */
-                font-size: 0.9em; /* Smaller font size for emojis */
-                line-height: 1; /* Ensures vertical alignment */
-                height: 24px; /* Fixed height to match icon size */
-                width: 24px; /* Fixed width */
-                display: flex; /* Use flex to center content */
+                padding: 3px 6px;
+                font-size: 0.9em;
+                line-height: 1;
+                height: 24px;
+                width: 24px;
+                display: flex;
                 align-items: center;
                 justify-content: center;
             }
@@ -584,10 +538,11 @@
             margin-left: 10px;
         }
 
-        /* --- NEW: CSS for failure reasons --- */
-        .fit-item-failure-list {
+        .fit-item-failure-list,
+        .fit-item-missing-list,
+        .fit-item-sub-for-list {
             list-style: none;
-            padding: 4px 0 4px 29px; /* Match other indented lists */
+            padding: 4px 0 4px 29px; /* Match indent */
             margin: 4px 0 0 0;
             width: 100%;
             display: flex;
@@ -595,88 +550,34 @@
             gap: 5px;
         }
 
-        .fit-item-failure-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: #ffc107; /* Warning yellow */
-            font-size: 0.9em;
-        }
-
-            .fit-item-failure-item img {
-                width: 20px; /* Smaller icon */
-                height: 20px;
-            }
-        /* --- END NEW --- */
-
-        /* Styles for indented missing item list */
-        .fit-item-missing-list {
-            list-style: none;
-            padding: 4px 0 4px 29px;
-            margin: 4px 0 0 0;
-            width: 100%; /* Make it span full width */
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .fit-item-missing-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: #ff8a8a; /* Reddish text */
-            font-size: 0.9em;
-        }
-
-            .fit-item-missing-item img {
-                width: 20px; /* Smaller icon */
-                height: 20px;
-            }
-
-        /* ---
-        --- THIS IS THE FIX ---
-        --- Use flex-basis to force the wrap, matching the failure list
-        --- */
-        .fit-item-sub-for-list {
-            list-style: none;
-            padding: 4px 0 4px 29px; /* Indent */
-            margin: 4px 0 0 0; /* Add top margin */
-            width: 100%; /* Force wrap */
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        /* --- END THE FIX --- */
-
+        .fit-item-failure-item,
+        .fit-item-missing-item,
         .fit-item-sub-for-item {
             display: flex;
             align-items: center;
             gap: 5px;
-            color: #90ee90; /* Light green text */
             font-size: 0.9em;
-            /* --- REMOVED STYLES (moved to parent ul) --- */
         }
 
+        .fit-item-failure-item {
+            color: #ffc107;
+        }
+
+        .fit-item-missing-item {
+            color: #ff8a8a;
+        }
+
+        .fit-item-sub-for-item {
+            color: #90ee90;
+        }
+
+            .fit-item-failure-item img,
+            .fit-item-missing-item img,
             .fit-item-sub-for-item img {
                 width: 20px;
                 height: 20px;
             }
-
-        /* ---
-        --- END MODIFIED COMPARISON STYLES
-        --- */
-
-
-        /* ---
-        --- REMOVED: Old .fit-detail-list styles
-        --- */
-
-        /* --- NEW: FIT MODAL SUBSTITUTION STYLES --- */
-        /* --- These are for the *old* modal, which is now gone --- */
-        /* --- We can REMOVE them --- */
-
-        /* --- REMOVED: .fit-modal-sub-container and related styles --- */
-
+        /* --- End Slotted Fit Styles --- */
 
         .modal-footer {
             padding: 15px 20px;
@@ -701,11 +602,10 @@
                 cursor: not-allowed;
                 opacity: 0.6;
             }
-        /* --- END NEW MODAL STYLES --- */
 
-        /* --- NEW: Custom Confirm Modal --- */
+        /* --- Custom Confirm Modal --- */
         #custom-confirm-modal .modal-content {
-            max-width: 450px; /* Smaller than other modals */
+            max-width: 450px;
         }
 
         #custom-confirm-modal .modal-body {
@@ -717,7 +617,7 @@
         }
 
         #custom-confirm-modal .modal-footer {
-            justify-content: flex-end; /* Align buttons right */
+            justify-content: flex-end;
         }
 
         #custom-confirm-modal .modal-actions .btn-confirm {
@@ -735,19 +635,31 @@
             #custom-confirm-modal .modal-actions .btn-cancel:hover {
                 background-color: #868e96;
             }
+
+        /* --- NEW: Doctrine Modal Footer --- */
+        #doctrine-fit-modal-footer {
+            justify-content: space-between;
+        }
+
+        #doctrine-fit-copy-btn {
+            background-color: #a67c00;
+        }
+
+            #doctrine-fit-copy-btn:hover {
+                background-color: #c99900;
+            }
+
+        /* Hidden textarea for copying */
+        .hidden-textarea {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            opacity: 0;
+        }
         /* --- END NEW --- */
 
-        /* --- MODIFICATION: REMOVED DOCTRINE FIT MODAL FOOTER STYLES --- */
-
-        /* --- MODIFICATION: REMOVED COPY BUTTON STYLES --- */
-
-        /* --- MODIFICATION: REMOVED HIDDEN TEXTAREA STYLES --- */
     </style>
 
-    <!--
-    This block is now *outside* the main <style> tag.
-    Child templates can inject their own <style>...</style> blocks here.
-    -->
     {% block styles %}{% endblock %}
 
 </head>
@@ -755,35 +667,31 @@
 
     {% if user.is_authenticated %}
 
-    <!-- --- MODIFIED: Use new context variables --- -->
     {% with main_char=main_char_for_header all_chars=all_chars_for_header %}
-    <!-- --- END MODIFICATION --- -->
     <!-- --- SHARED USER HEADER --- -->
     <nav class="user-header">
 
+        <!-- --- MODIFICATION: Renamed "Home" to "Waitlist" --- -->
         <a href="{% url 'waitlist:home' %}" class="header-btn add-alt-btn">
-            Home
+            Waitlist
         </a>
-
-        <!-- --- MODIFICATION: REMOVED FITTINGS BUTTON --- -->
+        <!-- --- END MODIFICATION --- -->
+        <!-- --- NEW: Doctrine Button --- -->
+        <a href="{% url 'waitlist:doctrine_view' %}" class="header-btn add-alt-btn" style="background-color: #17a2b8;">
+            Doctrine
+        </a>
+        <!-- --- END NEW --- -->
         <!-- --- FC ADMIN LINKS --- -->
-        <!--
-        The 'is_fc' variable is passed from the home view.
-        We check if the user is in the 'Fleet Commander' group.
-        -->
         {% if is_fc %}
-        <!-- Display the FC Admin button if they are in the group -->
         <a href="{% url 'waitlist:fc_admin' %}" class="header-btn" style="background-color: #c25428;" title="FC Waitlist Admin">
             FC Admin
         </a>
-        <!-- Display the "Add FC Scopes" button -->
         <a href="{% url 'esi_auth:login' %}?scopes=fc" class="header-btn" style="background-color: #c25428;" title="Add/Refresh FC Scopes">
             Add FC Scopes
         </a>
         {% endif %}
         <!-- --- END FC ADMIN LINKS --- -->
-        <!-- --- MOVED: X-Up button is now on the left --- -->
-        <!-- This button will be enabled/disabled by the waitlist_view.html template -->
+        <!-- X-Up button (enabled by waitlist_view.html) -->
         <button type="button"
                 class="header-btn xup-btn"
                 id="xup-modal-button"
@@ -791,15 +699,13 @@
                 disabled>
             X-Up
         </button>
-        <!-- --- END MOVE --- -->
-        <!-- --- NEW: Django Admin Button --- -->
+
         {% if user.is_staff %}
         <a href="/admin/" class="header-btn" style="background-color: #6a4c93;" title="Django Admin">
             Admin
         </a>
         {% endif %}
-        <!-- --- END NEW --- -->
-        <!-- The Profile button, its href will be updated by JS -->
+
         <a href="{% if main_char %}{% url 'pilot:pilot_detail' main_char.character_id %}{% endif %}"
            id="profile-link"
            class="profile-btn"
@@ -807,7 +713,6 @@
             View Profile
         </a>
 
-        <!-- The character dropdown -->
         {% if main_char %}
         <div class="character-dropdown">
             <div class="dropdown-toggle" id="dropdown-toggle-button">
@@ -833,21 +738,37 @@
         </div>
         {% endif %}
 
-        <!-- --- MODIFIED: Order restored --- -->
         <a href="{% url 'esi_auth:login' %}" class="header-btn add-alt-btn">Add Character</a>
         <a href="{% url 'esi_auth:logout' %}" class="header-btn logout-btn">Log Out</a>
-        <!-- --- END MODIFICATION --- -->
     </nav>
     {% endwith %}
+
+    {% else %}
+    <!-- --- NEW: PUBLIC HEADER for non-logged-in users --- -->
+    <nav class="user-header">
+        <!-- The user is not authenticated, so we only show public links -->
+        <a href="{% url 'waitlist:home' %}" class="header-btn add-alt-btn">
+            Home
+        </a>
+        <a href="{% url 'waitlist:doctrine_view' %}" class="header-btn add-alt-btn" style="background-color: #17a2b8;">
+            Doctrine
+        </a>
+
+        <!-- "Log In" button on the far right -->
+        <a href="{% url 'esi_auth:login' %}" class="header-btn add-alt-btn" style="margin-left: auto;">
+            Log In with EVE Online
+        </a>
+    </nav>
+    <!-- --- END NEW --- -->
     {% endif %}
 
+
     <!-- --- MAIN CONTENT BLOCK --- -->
-    <!-- Child templates will inject their content here -->
     <main>
         {% block content %}{% endblock %}
     </main>
     <!-- --- END MAIN CONTENT BLOCK --- -->
-    <!-- --- NEW: X-UP MODAL HTML --- -->
+    <!-- --- X-UP MODAL (for logged-in users) --- -->
     {% if user.is_authenticated %}
     <div class="modal-overlay" id="xup-modal-overlay">
         <div class="modal-content">
@@ -890,8 +811,8 @@
         </div>
     </div>
     {% endif %}
-    <!-- --- END NEW MODAL --- -->
-    <!-- --- NEW: FC FIT DETAIL MODAL --- -->
+    <!-- --- END X-UP MODAL --- -->
+    <!-- --- FC FIT DETAIL MODAL (for submitted fits) --- -->
     <div class="modal-overlay" id="fit-detail-modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -899,34 +820,50 @@
                 <button class="modal-close-btn" id="fit-detail-modal-close-btn">&times;</button>
             </div>
 
-            <!-- Body is populated by JS -->
             <div class="modal-body" id="fit-detail-modal-body">
                 <div class="modal-spinner"></div>
             </div>
 
             <div class="modal-footer">
                 <div class="modal-actions">
-                    <!-- --- NEW: Update Fit Button (for pilots) --- -->
                     <button class="header-btn xup-btn" id="fit-detail-modal-update-btn" style="display: none;">Update Fit</button>
-                    <!-- --- END NEW --- -->
-                    <!-- --- FC Buttons --- -->
                     <button class="header-btn btn-approve" id="fit-detail-modal-accept-btn" style="display: none;">Accept Fit</button>
                     <button class="header-btn btn-deny" id="fit-detail-modal-deny-btn" style="display: none;">Deny Fit</button>
-                    <!-- --- END NEW --- -->
                     <button class="header-btn add-alt-btn" id="fit-detail-modal-cancel-btn">Close</button>
                 </div>
             </div>
         </div>
     </div>
-    <!-- --- END NEW FC MODAL --- -->
-    <!-- --- MODIFICATION: REMOVED DOCTRINE FIT MODAL --- -->
-    <!-- --- MODIFICATION: REMOVED HIDDEN COPY TEXTAREA --- -->
+    <!-- --- END FC MODAL --- -->
     <!--
     ---
-    --- NEW: CUSTOM CONFIRM MODAL (MOVED FROM waitlist_view.html) ---
-    --- This is now available on all pages.
+    --- NEW: DOCTRINE FIT MODAL (for public fits)
     ---
     -->
+    <div class="modal-overlay" id="doctrine-fit-modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="doctrine-fit-modal-title">Doctrine Fit</h2>
+                <button class="modal-close-btn" id="doctrine-fit-modal-close-btn">&times;</button>
+            </div>
+
+            <!-- Body is populated by JS -->
+            <div class="modal-body" id="doctrine-fit-modal-body">
+                <div class="modal-spinner"></div>
+            </div>
+
+            <div class="modal-footer" id="doctrine-fit-modal-footer">
+                <button class="header-btn" id="doctrine-fit-copy-btn" style="display: none;">
+                    Copy EFT Fit
+                </button>
+                <div class="modal-actions">
+                    <button class="header-btn add-alt-btn" id="doctrine-fit-modal-cancel-btn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- --- END NEW: DOCTRINE FIT MODAL --- -->
+    <!-- --- CUSTOM CONFIRM MODAL --- -->
     <div class="modal-overlay" id="custom-confirm-modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -936,16 +873,22 @@
                 Are you sure you want to do this?
             </div>
             <div class="modal-footer">
-                <div class_="modal-actions">
+                <div class="modal-actions">
                     <button class="header-btn btn-cancel" id="custom-confirm-cancel-btn">Cancel</button>
                     <button class="header-btn btn-confirm" id="custom-confirm-ok-btn">Confirm</button>
                 </div>
             </div>
         </div>
     </div>
-    <!-- --- END NEW: CUSTOM CONFIRM MODAL --- -->
+    <!-- --- END CUSTOM CONFIRM MODAL --- -->
+    <!-- --- NEW: Hidden textarea for copy-to-clipboard --- -->
+    <textarea class="hidden-textarea" id="hidden-copy-textarea"></textarea>
+
     <!-- --- SHARED JAVASCRIPT --- -->
     <script>
+        // ---
+        // --- 1. HEADER DROPDOWN (for logged-in users)
+        // ---
         const dropdownToggleButton = document.getElementById('dropdown-toggle-button');
 
         if (dropdownToggleButton) {
@@ -954,13 +897,11 @@
             const selectedCharPortrait = document.getElementById('selected-char-portrait');
             const selectedCharName = document.getElementById('selected-char-name');
 
-            // 1. Toggle the dropdown
             dropdownToggleButton.addEventListener('click', (event) => {
                 event.stopPropagation();
                 dropdownList.classList.toggle('show');
             });
 
-            // 2. Handle clicks on dropdown items
             dropdownList.querySelectorAll('.dropdown-item').forEach(item => {
                 item.addEventListener('click', () => {
                     const charId = item.dataset.id;
@@ -970,8 +911,6 @@
                     selectedCharPortrait.src = charPortraitUrl;
                     selectedCharName.textContent = charName;
 
-                    // We can't just replace the ID, because the user might
-                    // be on the homepage. We must build the full URL.
                     const profileUrl = `{% url 'pilot:pilot_detail' 0 %}`.replace('0', charId);
                     profileLink.href = profileUrl;
 
@@ -979,7 +918,6 @@
                 });
             });
 
-            // 3. Close dropdown if clicking outside
             window.addEventListener('click', () => {
                 if (dropdownList.classList.contains('show')) {
                     dropdownList.classList.remove('show');
@@ -987,18 +925,15 @@
             });
         }
 
-        // --- NEW: X-UP MODAL JAVASCRIPT ---
-        // This timer variable will be shared
+        // ---
+        // --- 2. X-UP MODAL (for logged-in users)
+        // ---
         let esiCountdownInterval = null;
 
         function startESITimer(expiresISO) {
-            // Clear any existing timer
-            if (esiCountdownInterval) {
-                clearInterval(esiCountdownInterval);
-            }
-
+            if (esiCountdownInterval) clearInterval(esiCountdownInterval);
             const timerElement = document.getElementById('xup-esi-timer');
-            if (!timerElement) return; // Exit if element not found
+            if (!timerElement) return;
 
             const expiresDate = new Date(expiresISO);
 
@@ -1013,155 +948,115 @@
                     const diffSecs = Math.floor(diffMs / 1000);
                     const minutes = Math.floor(diffSecs / 60);
                     const seconds = diffSecs % 60;
-                    timerElement.textContent = `Implant cache expires in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    timerElement.textContent = `Implant cache expires in: ${minutes}:${seconds.toString().padStart(2, '0')}s`;
                 }
             }
-
-            updateTimer(); // Run once immediately
-            esiCountdownInterval = setInterval(updateTimer, 1000); // Update every second
+            updateTimer();
+            esiCountdownInterval = setInterval(updateTimer, 1000);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             const openModalBtn = document.getElementById('xup-modal-button');
             const modalOverlay = document.getElementById('xup-modal-overlay');
-            const closeModalBtn = document.getElementById('xup-modal-close-btn');
-            const cancelModalBtn = document.getElementById('xup-modal-cancel-btn');
-            const submitModalBtn = document.getElementById('xup-modal-submit-btn');
-            const charSelect = document.getElementById('xup-char-select');
-            const fitTextarea = document.getElementById('xup-fit-textarea');
-            const implantContainer = document.getElementById('xup-implant-container');
-            const timerElement = document.getElementById('xup-esi-timer');
 
-            // Check if all modal elements exist (they only do for logged-in users)
-            if (!modalOverlay || !openModalBtn) {
-                return;
-            }
+            // Check if user is authenticated
+            if (modalOverlay && openModalBtn) {
+                const closeModalBtn = document.getElementById('xup-modal-close-btn');
+                const cancelModalBtn = document.getElementById('xup-modal-cancel-btn');
+                const submitModalBtn = document.getElementById('xup-modal-submit-btn');
+                const charSelect = document.getElementById('xup-char-select');
+                const fitTextarea = document.getElementById('xup-fit-textarea');
+                const implantContainer = document.getElementById('xup-implant-container');
+                const timerElement = document.getElementById('xup-esi-timer');
 
-            const openModal = () => modalOverlay.classList.add('show');
-            const closeModal = () => {
-                modalOverlay.classList.remove('show');
-                // Clear timer when modal closes
-                if (esiCountdownInterval) {
-                    clearInterval(esiCountdownInterval);
-                }
-                if(timerElement) {
-                    timerElement.textContent = "";
-                }
-            };
+                const openModal = () => modalOverlay.classList.add('show');
+                const closeModal = () => {
+                    modalOverlay.classList.remove('show');
+                    if (esiCountdownInterval) clearInterval(esiCountdownInterval);
+                    if(timerElement) timerElement.textContent = "";
+                };
 
-            openModalBtn.addEventListener('click', openModal);
-            closeModalBtn.addEventListener('click', closeModal);
-            cancelModalBtn.addEventListener('click', closeModal);
-            modalOverlay.addEventListener('click', (e) => {
-                if (e.target === modalOverlay) {
-                    closeModal();
-                }
-            });
+                openModalBtn.addEventListener('click', openModal);
+                closeModalBtn.addEventListener('click', closeModal);
+                cancelModalBtn.addEventListener('click', closeModal);
+                modalOverlay.addEventListener('click', (e) => {
+                    if (e.target === modalOverlay) closeModal();
+                });
 
-            // Handle character selection
-            charSelect.addEventListener('change', () => {
-                const charId = charSelect.value;
+                charSelect.addEventListener('change', () => {
+                    const charId = charSelect.value;
+                    if (esiCountdownInterval) clearInterval(esiCountdownInterval);
+                    if(timerElement) timerElement.textContent = "";
 
-                // Clear old timer
-                if (esiCountdownInterval) {
-                    clearInterval(esiCountdownInterval);
-                }
-                if(timerElement) {
-                    timerElement.textContent = "";
-                }
+                    if (!charId) {
+                        implantContainer.innerHTML = '<p style="color: #999; font-style: italic;">Select a character to load implants.</p>';
+                        return;
+                    }
 
-                if (!charId) {
-                    implantContainer.innerHTML = '<p style="color: #999; font-style: italic;">Select a character to load implants.</p>';
-                    return;
-                }
+                    implantContainer.innerHTML = '<div class="implant-spinner"></div>';
 
-                // Show loading spinner
-                implantContainer.innerHTML = '<div class="implant-spinner"></div>';
+                    fetch(`{% url 'pilot:api_get_implants' %}?character_id=${charId}`)
+                        .then(response => response.ok ? response.json() : Promise.reject('Failed to fetch implants.'))
+                        .then(data => {
+                            if (data.status === 'success') {
+                                implantContainer.innerHTML = data.html;
+                                startESITimer(data.expires_iso);
+                            } else {
+                                throw new Error(data.message || 'Unknown error');
+                            }
+                        })
+                        .catch(error => {
+                            implantContainer.innerHTML = `<p style="color: #ff8a8a;">Error: ${error.message}</p>`;
+                        });
+                });
 
-                // Fetch implants
-                fetch(`{% url 'pilot:api_get_implants' %}?character_id=${charId}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Failed to fetch implants. Check scopes?');
-                        }
-                        return response.json();
+                submitModalBtn.addEventListener('click', () => {
+                    const charId = charSelect.value;
+                    const rawFit = fitTextarea.value;
+
+                    if (!charId || !rawFit) {
+                        alert('Please select a character and paste a fit.');
+                        return;
+                    }
+
+                    submitModalBtn.disabled = true;
+                    submitModalBtn.textContent = 'Submitting...';
+
+                    const formData = new FormData();
+                    formData.append('character_id', charId);
+                    formData.append('raw_fit', rawFit);
+
+                    fetch("{% url 'waitlist:api_submit_fit' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': "{{ csrf_token }}",
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
                     })
+                    .then(response => response.json())
                     .then(data => {
                         if (data.status === 'success') {
-                            implantContainer.innerHTML = data.html;
-                            // Start the ESI cache timer
-                            startESITimer(data.expires_iso);
+                            closeModal();
+                            fitTextarea.value = "";
+                            charSelect.selectedIndex = 0;
+                            implantContainer.innerHTML = '<p style="color: #999; font-style: italic;">Select a character to load implants.</p>';
                         } else {
-                            throw new Error(data.message || 'Unknown error');
+                            alert(`Error: ${data.message}`);
                         }
                     })
-                    .catch(error => {
-                        implantContainer.innerHTML = `<p style="color: #ff8a8a;">Error: ${error.message}</p>`;
+                    .catch(error => alert(`Network Error: ${error.message}`))
+                    .finally(() => {
+                        submitModalBtn.disabled = false;
+                        submitModalBtn.textContent = 'Submit';
                     });
-            });
-
-            // Handle fit submission
-            submitModalBtn.addEventListener('click', () => {
-                const charId = charSelect.value;
-                const rawFit = fitTextarea.value;
-
-                if (!charId) {
-                    // Use a more modern notification if possible, but alert is fine for now
-                    alert('Please select a character.');
-                    return;
-                }
-                if (!rawFit) {
-                    alert('Please paste a fit.');
-                    return;
-                    }
-
-                submitModalBtn.disabled = true;
-                submitModalBtn.textContent = 'Submitting...';
-
-                const formData = new FormData();
-                formData.append('character_id', charId);
-                formData.append('raw_fit', rawFit);
-
-                fetch("{% url 'waitlist:api_submit_fit' %}", {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': "{{ csrf_token }}",
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // --- THIS IS THE FIX ---
-                        // We no longer alert(data.message) on success
-                        closeModal();
-                        // --- END FIX ---
-
-                        // The live polling will automatically pick up the new fit!
-                        // We can also reset the form
-                        fitTextarea.value = "";
-                        charSelect.selectedIndex = 0;
-                        implantContainer.innerHTML = '<p style="color: #999; font-style: italic;">Select a character to load implants.</p>';
-                    } else {
-                        alert(`Error: ${data.message}`);
-                    }
-                })
-                .catch(error => {
-                    alert(`Network Error: ${error.message}`);
-                })
-                .finally(() => {
-                    submitModalBtn.disabled = false;
-                    submitModalBtn.textContent = 'Submit';
                 });
-            });
+            }
         });
 
-
         // ---
-        // --- NEW: CUSTOM CONFIRM MODAL SCRIPT (MOVED FROM waitlist_view.html) ---
+        // --- 3. CUSTOM CONFIRM MODAL (Global)
         // ---
-        // This function will store the callback to run on "OK"
         let _onConfirmCallback = null;
         const confirmModal = document.getElementById('custom-confirm-modal');
         const confirmMsg = document.getElementById('custom-confirm-message');
@@ -1170,37 +1065,196 @@
 
         function showCustomConfirm(message, onConfirmCallback) {
             if (!confirmModal) return;
-
-            confirmMsg.innerHTML = message; // Use innerHTML to allow simple formatting
+            confirmMsg.innerHTML = message;
             _onConfirmCallback = onConfirmCallback;
-
-            // Show the modal
             confirmModal.classList.add('show');
         }
 
-        // Add listeners for the confirm modal buttons
         if (confirmModal) {
             confirmOkBtn.addEventListener('click', () => {
                 if (typeof _onConfirmCallback === 'function') {
                     _onConfirmCallback();
                 }
-                _onConfirmCallback = null; // Clear callback
-                confirmModal.classList.remove('show'); // Hide modal
+                _onConfirmCallback = null;
+                confirmModal.classList.remove('show');
+            });
+            confirmCancelBtn.addEventListener('click', () => {
+                _onConfirmCallback = null;
+                confirmModal.classList.remove('show');
+            });
+        }
+
+        // ---
+        // --- 4. NEW: DOCTRINE FIT MODAL (Global, public)
+        // ---
+        const doctrineModalOverlay = document.getElementById('doctrine-fit-modal-overlay');
+        const doctrineModalCloseBtn = document.getElementById('doctrine-fit-modal-close-btn');
+        const doctrineModalCancelBtn = document.getElementById('doctrine-fit-modal-cancel-btn');
+        const doctrineModalBody = document.getElementById('doctrine-fit-modal-body');
+        const doctrineModalTitle = document.getElementById('doctrine-fit-modal-title');
+        const doctrineModalCopyBtn = document.getElementById('doctrine-fit-copy-btn');
+        const hiddenCopyTextarea = document.getElementById('hidden-copy-textarea');
+        let currentDoctrineFitEFT = "";
+
+        // Helper function to build slotted fit HTML (shared by both modals)
+        // This is safe to define globally in base.html
+        function buildSlottedFitHtml(data) {
+            const fit = data.slotted_fit;
+            if (!fit || !fit.ship || !fit.slots) {
+                return '<p style="color: #ff8a8a; padding: 20px;">Error: Invalid fit data received.</p>';
+            }
+
+            let html = '<div class="fit-modal-layout">';
+            html += '<div class="fit-modal-slot-banks">';
+
+            const slotOrder = ['high', 'mid', 'low', 'rig', 'subsystem', 'drone', 'cargo'];
+            const slotNames = {
+                high: 'High Slots', mid: 'Mid Slots', low: 'Low Slots',
+                rig: 'Rig Slots', subsystem: 'Subsystem Slots',
+                drone: 'Drones', cargo: 'Cargo Hold'
+            };
+
+            slotOrder.forEach(slotKey => {
+                const items = fit.slots[slotKey];
+                const count = fit.slot_counts[slotKey] || 0;
+
+                if (!items || items.length === 0) {
+                    return; // Don't render empty sections
+                }
+
+                html += '<div class="fit-slot-bank">';
+                html += '<div class="fit-slot-bank-header">';
+                html += `${slotNames[slotKey]} `;
+
+                if (!fit.is_t3c && slotKey !== 'drone' && slotKey !== 'cargo') {
+                     const fitted_count = items.filter(i => !i.is_empty).length;
+                     html += `<span>(${fitted_count} / ${count})</span>`;
+                }
+                html += '</div>';
+
+                html += '<ul class="fit-slot-list">';
+                items.forEach(item => {
+                    let itemClass = item.is_empty ? 'is-empty' : '';
+
+                    // Add comparison classes if they exist (for FC modal)
+                    if(item.status_class) itemClass += ` ${item.status_class}`;
+
+                    html += `<li class="fit-slot-item ${itemClass}" title="${item.name}">`;
+
+                    if (item.is_empty) {
+                        html += `<img src="https://images.evetech.net/types/2965/icon?size=32" alt="Empty Slot" class="fit-modal-icon" style="opacity: 0.2;">`;
+                        html += `<span class="fit-item-name">${item.name}</span>`;
+                    } else {
+                        const icon_url = item.icon_url || `https://images.evetech.net/types/${item.type_id}/icon?size=32`;
+                        html += `<img src="${icon_url}" alt="${item.name}" class="fit-modal-icon">`;
+                        const line_text = item.raw_line || item.name;
+                        const safe_line = line_text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        html += `<span class="fit-item-name">${safe_line}</span>`;
+                    }
+
+                    // Add problem/sub lists if they exist (for FC modal)
+                    if (item.failure_list) {
+                        html += '<ul class="fit-item-failure-list">';
+                        item.failure_list.forEach(fail => {
+                            html += `<li class="fit-item-failure-item">
+                                        <img src="${fail.icon_url}" alt="${fail.name}">
+                                        <span>${fail.name} (${fail.reason})</span>
+                                    </li>`;
+                        });
+                        html += '</ul>';
+                    }
+                    if (item.substituted_for_list) {
+                        html += '<ul class="fit-item-sub-for-list">';
+                        item.substituted_for_list.forEach(sub => {
+                            html += `<li class="fit-item-sub-for-item">
+                                        <img src="${sub.icon_url}" alt="${sub.name}">
+                                        <span>Substituted for: ${sub.name} (x${sub.quantity})</span>
+                                    </li>`;
+                        });
+                        html += '</ul>';
+                    }
+                    if (item.missing_list) {
+                        html += '<ul class="fit-item-missing-list">';
+                        item.missing_list.forEach(miss => {
+                            html += `<li class="fit-item-missing-item">
+                                        <img src="${miss.icon_url}" alt="${miss.name}">
+                                        <span>Missing: ${miss.name} (x${miss.quantity})</span>
+                                    </li>`;
+                        });
+                        html += '</ul>';
+                    }
+
+                    html += '</li>';
+                });
+                html += '</ul></div>'; // Close bank
             });
 
-            confirmCancelBtn.addEventListener('click', () => {
-                _onConfirmCallback = null; // Clear callback
-                confirmModal.classList.remove('show'); // Hide modal
+            html += '</div>'; // Close slot-banks
+            html += '</div>'; // Close fit-modal-layout
+            return html;
+        }
+
+        function openDoctrineFitModal(fitId) {
+            if (!doctrineModalOverlay) return;
+
+            doctrineModalBody.innerHTML = '<div class="modal-spinner"></div>';
+            doctrineModalTitle.textContent = "Loading Doctrine Fit...";
+            doctrineModalCopyBtn.style.display = 'none';
+            currentDoctrineFitEFT = "";
+            doctrineModalOverlay.classList.add('show');
+
+            fetch(`{% url 'waitlist:api_get_doctrine_fit_details' %}?fit_id=${fitId}`)
+                .then(response => response.ok ? response.json() : Promise.reject('Failed to load fit.'))
+                .then(data => {
+                    if (data.status !== 'success') {
+                        throw new Error(data.message || 'Failed to load fit.');
+                    }
+
+                    doctrineModalTitle.textContent = data.name;
+                    doctrineModalBody.innerHTML = buildSlottedFitHtml(data);
+
+                    if (data.raw_fit) {
+                        currentDoctrineFitEFT = data.raw_fit;
+                        doctrineModalCopyBtn.style.display = 'inline-block';
+                        doctrineModalCopyBtn.textContent = 'Copy EFT Fit';
+                    }
+                })
+                .catch(error => {
+                    doctrineModalBody.innerHTML = `<p style="color: #ff8a8a; padding: 20px;">Error: ${error.message}</p>`;
+                });
+        }
+
+        function closeDoctrineFitModal() {
+            if (doctrineModalOverlay) {
+                doctrineModalOverlay.classList.remove('show');
+            }
+        }
+
+        if (doctrineModalOverlay) {
+            doctrineModalCloseBtn.addEventListener('click', closeDoctrineFitModal);
+            doctrineModalCancelBtn.addEventListener('click', closeDoctrineFitModal);
+            doctrineModalOverlay.addEventListener('click', (e) => {
+                if (e.target === doctrineModalOverlay) closeDoctrineFitModal();
+            });
+
+            doctrineModalCopyBtn.addEventListener('click', () => {
+                if (currentDoctrineFitEFT && hiddenCopyTextarea) {
+                    hiddenCopyTextarea.value = currentDoctrineFitEFT;
+                    hiddenCopyTextarea.select();
+                    try {
+                        document.execCommand('copy');
+                        doctrineModalCopyBtn.textContent = 'Copied!';
+                    } catch (err) {
+                        doctrineModalCopyBtn.textContent = 'Copy Failed';
+                    }
+                    window.getSelection().removeAllRanges();
+                }
             });
         }
         // ---
-        // --- END CUSTOM CONFIRM SCRIPT ---
+        // --- END DOCTRINE FIT MODAL SCRIPT
         // ---
 
-
-        // ---
-        // --- MODIFICATION: REMOVED DOCTRINE FIT MODAL JAVASCRIPT ---
-        // ---
     </script>
 
 
